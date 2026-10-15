@@ -610,16 +610,40 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       const user = await getAuthUser(request, env.DB);
       if (!user) return error('Chưa đăng nhập.', 401);
 
+      const now = Date.now();
       const decksResult = await env.DB.prepare(`
         SELECT d.*,
-          (SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id AND c.user_id = d.user_id) AS card_count,
-          (SELECT COUNT(*) FROM user_card_state s JOIN cards c2 ON s.card_id = c2.id WHERE c2.deck_id = d.id AND s.user_id = d.user_id AND s.due_at <= ? AND s.direction = 'en_vi') AS due_count
+          (SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id) AS total_cards,
+          (SELECT COUNT(*) FROM user_card_state s JOIN cards c2 ON s.card_id = c2.id WHERE c2.deck_id = d.id AND s.user_id = ? AND s.due_at <= ? AND s.direction = 'en_vi') AS due_cards,
+          (SELECT COUNT(*) FROM user_card_state s2 JOIN cards c3 ON s2.card_id = c3.id WHERE c3.deck_id = d.id AND s2.user_id = ? AND s2.repetitions > 0 AND s2.direction = 'en_vi') AS reviewed_cards
         FROM decks d
         WHERE d.user_id = ? AND d.archived_at IS NULL
         ORDER BY d.created_at DESC
-      `).bind(Date.now(), user.id).all();
+      `).bind(user.id, now, user.id, user.id).all();
 
-      return json({ decks: decksResult.results || [] });
+      const decks = (decksResult.results || []).map((d: any) => {
+        const totalCards = Number(d.total_cards || 0);
+        const reviewedCards = Number(d.reviewed_cards || 0);
+        const dueCards = Number(d.due_cards || 0);
+        const newCards = Math.max(0, totalCards - reviewedCards);
+
+        return {
+          ...d,
+          totalCards,
+          dueCards,
+          newCards,
+          reviewedCards,
+          // Backwards compatibility with snake_case
+          card_count: totalCards,
+          total_cards: totalCards,
+          due_count: dueCards,
+          due_cards: dueCards,
+          new_count: newCards,
+          new_cards: newCards,
+        };
+      });
+
+      return json({ decks });
     }
 
     // POST /api/decks
@@ -639,7 +663,19 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       `).bind(id, user.id, title.trim(), description.trim(), topic.trim(), now, now).run();
 
       const deck = await env.DB.prepare('SELECT * FROM decks WHERE id = ?').bind(id).first();
-      return json({ success: true, deck: { ...(deck as any), card_count: 0, due_count: 0 } });
+      return json({
+        success: true,
+        deck: {
+          ...(deck as any),
+          totalCards: 0,
+          dueCards: 0,
+          newCards: 0,
+          reviewedCards: 0,
+          card_count: 0,
+          due_count: 0,
+          new_count: 0,
+        }
+      });
     }
 
     // GET /api/decks/:id
@@ -669,7 +705,24 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
         flagged_hard: Boolean(c.flagged_hard),
       }));
 
-      return json({ deck, cards });
+      const totalCards = cards.length;
+      const reviewedCards = cards.filter((c: any) => (c.repetitions || 0) > 0).length;
+      const dueCards = cards.filter((c: any) => c.due_at && c.due_at <= Date.now()).length;
+      const newCards = Math.max(0, totalCards - reviewedCards);
+
+      return json({
+        deck: {
+          ...deck,
+          totalCards,
+          dueCards,
+          newCards,
+          reviewedCards,
+          card_count: totalCards,
+          due_count: dueCards,
+          new_count: newCards,
+        },
+        cards,
+      });
     }
 
     // PATCH /api/decks/:id
@@ -1091,8 +1144,7 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       // Primary: gemini-3.8-flash (best quality, full reasoning)
       // Tier 1 fallback: gemini-3.5-flash-lite (high efficiency, rapid response)
       // Tier 2 fallback: gemini-3.1-flash-lite (high RPM/RPD limits, ultra-fast latency)
-      // Emergency backup: gemini-flash-latest
-      const baseModels = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+      const baseModels = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
       const models = preferredModel && baseModels.includes(preferredModel)
         ? [preferredModel, ...baseModels.filter(m => m !== preferredModel)]
         : baseModels;
@@ -1192,7 +1244,7 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
           hasKey: true,
           maskedKey,
           primaryModel: 'gemini-3.8-flash',
-          fallbackChain: ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-latest'],
+          fallbackChain: ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'],
           modelUsed: testRes.modelUsed,
           failoverPolicy: 'Tự động phát hiện lỗi 429 (Resource Exhausted / Rate Limit / Quota) hoặc 503 để chuyển tiếp ngay lập tức sang gemini-3.5-flash-lite rồi gemini-3.1-flash-lite không làm gián đoạn người dùng.',
           testResponse: testRes.text.slice(0, 50),

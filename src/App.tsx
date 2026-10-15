@@ -95,8 +95,24 @@ export default function App() {
 
   const loadDecks = async () => {
     try {
-      const res = await apiRequest<{ decks: Deck[] }>('/api/decks');
-      setDecks(res.decks || []);
+      const res = await apiRequest<{ decks: any[] }>('/api/decks');
+      const normalizedDecks: Deck[] = (res.decks || []).map(d => {
+        const total = Number(d.totalCards ?? d.card_count ?? d.total_cards ?? 0);
+        const due = Number(d.dueCards ?? d.due_count ?? d.due_cards ?? 0);
+        const reviewed = Number(d.reviewedCards ?? d.reviewed_cards ?? 0);
+        const newCount = d.newCards !== undefined
+          ? Number(d.newCards)
+          : (d.new_count !== undefined ? Number(d.new_count) : Math.max(0, total - reviewed));
+
+        return {
+          ...d,
+          totalCards: total,
+          dueCards: due,
+          newCards: newCount,
+          reviewedCards: reviewed,
+        };
+      });
+      setDecks(normalizedDecks);
     } catch {
       // ignore
     }
