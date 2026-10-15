@@ -25,6 +25,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [backupOtp, setBackupOtp] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(true);
+  const [otpNotice, setOtpNotice] = useState<string | null>(null);
 
   // Request form state
   const [reqName, setReqName] = useState('');
@@ -47,6 +48,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setOtpCode('');
       setBackupOtp(null);
       setEmailSent(true);
+      setOtpNotice(null);
       if (initialEmail) setEmail(initialEmail);
     }
   }, [isOpen, initialEmail]);
@@ -87,6 +89,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       });
 
       setSuccessMsg(data.message);
+      setOtpNotice(data.message);
       setStep('otp');
       setOtpCode('');
       setResendTimer(60);
@@ -311,10 +314,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div className="text-xs text-amber-950 dark:text-amber-200">
                         <div className="font-semibold text-amber-900 dark:text-amber-100">
-                          Chưa kích hoạt Mail Server Cloudflare (Thiếu API Key gửi email)
+                          Thông báo dịch vụ gửi Email (Resend / Mail Server)
                         </div>
                         <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
-                          Do tài khoản Cloudflare chưa cài đặt biến môi trường <code>RESEND_API_KEY</code> hoặc <code>BREVO_API_KEY</code>, email chưa thể gửi tới Gmail.
+                          {otpNotice || 'Chưa thể gửi email tới địa chỉ này qua API đã cài đặt.'}
                         </p>
                         {backupOtp && (
                           <div className="mt-2 p-2.5 bg-amber-100/80 dark:bg-amber-900/50 rounded-lg border border-amber-300 dark:border-amber-800 flex items-center justify-between">

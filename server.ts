@@ -204,19 +204,36 @@ async function sendServerOtpEmail(toEmail: string, otpCode: string): Promise<{ s
   }
 
   // 1. Resend
-  const resendKey = process.env.RESEND_API_KEY;
+  const resendKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY || process.env.RESEND;
   if (resendKey) {
-    try {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendKey.trim()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ from: fromEmail, to: [toEmail], subject, html }),
-      });
-      if (res.ok) return { success: true, provider: 'resend' };
-    } catch {}
+    const fromCandidates = [
+      process.env.EMAIL_FROM,
+      process.env.RESEND_FROM,
+      'SmartVocab <onboarding@resend.dev>',
+      'onboarding@resend.dev',
+    ].filter(Boolean) as string[];
+
+    for (const fromCandidate of fromCandidates) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendKey.trim()}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: fromCandidate,
+            to: [toEmail],
+            subject,
+            html,
+            text: `Mã xác thực OTP SmartVocab.io của bạn là: ${otpCode}. Mã có hiệu lực trong 10 phút.`,
+          }),
+        });
+        if (res.ok) return { success: true, provider: 'resend' };
+      } catch (e) {
+        console.warn('[Resend Error]', e);
+      }
+    }
   }
 
   // 2. Brevo

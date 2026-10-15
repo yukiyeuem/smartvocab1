@@ -571,8 +571,39 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       return { success: false, error: lastError };
     }
 
+    // Helper to find Resend API key dynamically from environment
+    function getResendApiKey(envObj: any): string {
+      const directCandidates = [
+        envObj.RESEND_API_KEY, envObj.RESEND_KEY, envObj.RESEND, envObj.RESEND_API,
+        envObj.RESEND_TOKEN, envObj.RESEND_SECRET
+      ];
+      for (const c of directCandidates) {
+        if (typeof c === 'string' && c.trim()) return c.trim();
+      }
+
+      if (typeof process !== 'undefined' && process.env) {
+        if (process.env.RESEND_API_KEY) return process.env.RESEND_API_KEY.trim();
+        if (process.env.RESEND_KEY) return process.env.RESEND_KEY.trim();
+        if (process.env.RESEND) return process.env.RESEND.trim();
+      }
+
+      // Dynamic scan for any variable containing 're_' (Resend API key format: re_xxxxxxxx)
+      if (typeof envObj === 'object' && envObj !== null) {
+        for (const [k, v] of Object.entries(envObj)) {
+          if (typeof v === 'string') {
+            const val = v.trim();
+            if (val.startsWith('re_') || (k.toLowerCase().includes('resend') && val.length > 10)) {
+              return val;
+            }
+          }
+        }
+      }
+
+      return '';
+    }
+
     // Helper to send real OTP email via Render, Resend, Brevo, SendGrid or fallback log
-    async function sendOtpEmail(toEmail: string, otpCode: string, envObj: Env): Promise<{ success: boolean; provider?: string }> {
+    async function sendOtpEmail(toEmail: string, otpCode: string, envObj: Env): Promise<{ success: boolean; provider?: string; error?: string }> {
       const fromEmail = envObj.EMAIL_FROM || envObj.RESEND_FROM || 'SmartVocab.io <onboarding@resend.dev>';
       const subject = `[SmartVocab.io] Mã xác thực đăng nhập: ${otpCode}`;
       const html = `
@@ -625,30 +656,61 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       }
 
       // 1. Resend API
-      const resendKey = envObj.RESEND_API_KEY || (typeof process !== 'undefined' ? process.env?.RESEND_API_KEY : '');
+      const resendKey = getResendApiKey(envObj);
       if (resendKey) {
-        try {
-          const res = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${resendKey.trim()}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: fromEmail,
-              to: [toEmail],
-              subject,
-              html,
-            }),
-          });
-          if (res.ok) {
-            return { success: true, provider: 'resend' };
-          } else {
-            const errBody = await res.text().catch(() => '');
-            console.error('[Resend Error]', res.status, errBody);
+        // Try multiple standard from addresses supported by Resend
+        const fromCandidates = [
+          envObj.EMAIL_FROM,
+          envObj.RESEND_FROM,
+          'SmartVocab <onboarding@resend.dev>',
+          'onboarding@resend.dev',
+        ].filter(Boolean) as string[];
+
+        let lastResendErr = '';
+        for (const fromCandidate of fromCandidates) {
+          try {
+            console.log(`[Resend] Sending to ${toEmail} from "${fromCandidate}"...`);
+            const res = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${resendKey.trim()}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                from: fromCandidate,
+                to: [toEmail],
+                subject,
+                html,
+                text: `Mã xác thực OTP SmartVocab.io của bạn là: ${otpCode}. Mã có hiệu lực trong 10 phút.`,
+              }),
+            });
+
+            const resText = await res.text().catch(() => '');
+            console.log(`[Resend] Status ${res.status}: ${resText.slice(0, 150)}`);
+
+            if (res.ok) {
+              return { success: true, provider: 'resend' };
+            }
+
+            try {
+              const errJson = JSON.parse(resText);
+              lastResendErr = errJson.message || resText;
+            } catch {
+              lastResendErr = resText;
+            }
+
+            // If it's a domain/sender error, continue loop to try bare onboarding@resend.dev
+            if (fromCandidate === 'onboarding@resend.dev') {
+              break;
+            }
+          } catch (e: any) {
+            console.error('[Resend Network Error]', e);
+            lastResendErr = e?.message || String(e);
           }
-        } catch (e) {
-          console.error('[Resend Network Error]', e);
+        }
+
+        if (lastResendErr) {
+          return { success: false, provider: 'resend', error: lastResendErr };
         }
       }
 
@@ -769,18 +831,24 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
 
       let emailSent = false;
       let emailProvider = '';
+      let emailError = '';
       try {
         const mailRes = await sendOtpEmail(user.email_display || canonical, rawCode, env);
         emailSent = Boolean(mailRes?.success);
         if (emailSent && mailRes?.provider) {
           emailProvider = mailRes.provider;
         }
-      } catch (e) {
+        if (!emailSent && mailRes?.error) {
+          emailError = mailRes.error;
+          emailProvider = mailRes.provider || '';
+        }
+      } catch (e: any) {
         console.warn('sendOtpEmail warning:', e);
+        emailError = e?.message || String(e);
       }
 
       if (emailSent) {
-        const providerName = emailProvider === 'render' ? 'dịch vụ Render Mail API' : 'email';
+        const providerName = emailProvider === 'render' ? 'dịch vụ Render Mail API' : emailProvider === 'resend' ? 'dịch vụ Resend' : 'email';
         return json({
           success: true,
           emailSent: true,
@@ -790,18 +858,36 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
         });
       }
 
-      // Check if Render API was detected in env
+      // Check if Resend or Render API was detected in env and format specific message
       const customApi = getCustomEmailApi(env);
-      const customNotice = customApi
-        ? `Đã nhận diện Render API (${customApi.url}), nhưng dịch vụ chưa phản hồi thành công (máy chủ Render miễn phí có thể mất 30-50s để khởi động 'spin-up' lại).`
-        : `Chưa cấu hình API gửi email trên Cloudflare (RENDER_MAIL_URL, BREVO_API_KEY hoặc RESEND_API_KEY).`;
+      const resendKey = getResendApiKey(env);
+      let errorNotice = '';
+
+      if (emailError) {
+        if (emailError.toLowerCase().includes('only send testing emails to your own email address')) {
+          errorNotice = `Resend báo lỗi: "Tài khoản Resend Free chỉ cho phép gửi thư đến chính email bạn đã dùng để đăng ký Resend". Nếu bạn muốn gửi đến địa chỉ này, hãy dùng email đã đăng ký Resend, hoặc xác thực Domain tại resend.com/domains.`;
+        } else if (emailError.toLowerCase().includes('domain not verified')) {
+          errorNotice = `Resend báo lỗi: Tên miền người gửi chưa được xác thực (Domain not verified) trên resend.com/domains.`;
+        } else if (emailError.toLowerCase().includes('api key') || emailError.toLowerCase().includes('restricted')) {
+          errorNotice = `Resend báo lỗi API Key: "${emailError}". Vui lòng kiểm tra lại quyền hạn của API key trên resend.com/api-keys.`;
+        } else {
+          errorNotice = `${emailProvider === 'resend' ? 'Resend' : 'Dịch vụ gửi mail'} phản hồi: "${emailError}".`;
+        }
+      } else if (resendKey) {
+        errorNotice = `Đã nhận diện RESEND_API_KEY trên Cloudflare nhưng dịch vụ chưa thể chuyển thư vào hộp thư này.`;
+      } else if (customApi) {
+        errorNotice = `Đã nhận diện Render API (${customApi.url}), nhưng dịch vụ chưa phản hồi thành công (máy chủ Render miễn phí có thể mất 30-50s để khởi động 'spin-up' lại).`;
+      } else {
+        errorNotice = `Chưa cấu hình API gửi email trên Cloudflare (RESEND_API_KEY, RENDER_MAIL_URL hoặc BREVO_API_KEY).`;
+      }
 
       // Return safe backup OTP so user can manually enter it and log in without getting stuck
       return json({
         success: true,
         emailSent: false,
         backupOtpCode: rawCode,
-        message: `${customNotice} Mã OTP của bạn là: ${rawCode}. Vui lòng nhập mã 6 số này vào ô bên dưới để đăng nhập.`,
+        emailError: emailError || undefined,
+        message: `${errorNotice} Mã OTP của bạn là: ${rawCode}. Vui lòng nhập mã 6 số này vào ô bên dưới để đăng nhập.`,
         emailDisplay: user.email_display,
       });
     }
