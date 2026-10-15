@@ -506,6 +506,46 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
         } catch {}
       }
 
+      // 3. SendGrid API
+      const sendgridKey = envObj.SENDGRID_API_KEY || (typeof process !== 'undefined' ? process.env?.SENDGRID_API_KEY : '');
+      if (sendgridKey) {
+        try {
+          const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${sendgridKey.trim()}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              personalizations: [{ to: [{ email: toEmail }] }],
+              from: { email: envObj.EMAIL_FROM || 'no-reply@smartvocab.io', name: 'SmartVocab.io' },
+              subject,
+              content: [{ type: 'text/html', value: html }],
+            }),
+          });
+          if (res.ok) {
+            return { success: true, provider: 'sendgrid' };
+          }
+        } catch {}
+      }
+
+      // 4. MailChannels Cloudflare Edge relay
+      try {
+        const mcRes = await fetch('https://api.mailchannels.net/tx/v1/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            personalizations: [{ to: [{ email: toEmail }] }],
+            from: { email: 'otp@smartvocab.io', name: 'SmartVocab.io' },
+            subject,
+            content: [{ type: 'text/html', value: html }],
+          }),
+        });
+        if (mcRes.ok || mcRes.status === 202) {
+          return { success: true, provider: 'mailchannels' };
+        }
+      } catch {}
+
       console.log(`[Email OTP] Generated OTP for ${toEmail}: ${otpCode}`);
       return { success: false };
     }
@@ -561,13 +601,17 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
         console.warn('sendOtpEmail warning:', e);
       }
 
+      if (!emailSent) {
+        const hasKey = !!(env.RESEND_API_KEY || env.BREVO_API_KEY || env.SENDGRID_API_KEY || (typeof process !== 'undefined' && (process.env?.RESEND_API_KEY || process.env?.BREVO_API_KEY || process.env?.SENDGRID_API_KEY)));
+        if (!hasKey) {
+          return error('Chưa cấu hình API Key gửi email (RESEND_API_KEY hoặc BREVO_API_KEY trên Cloudflare Workers). Vui lòng thêm biến môi trường RESEND_API_KEY trong Cloudflare Dashboard để gửi mã OTP về hộp thư của bạn.', 500);
+        }
+        return error('Không thể gửi mã OTP tới email lúc này. Vui lòng kiểm tra lại cấu hình email trên Cloudflare hoặc thử lại sau.', 500);
+      }
+
       return json({
         success: true,
-        message: emailSent
-          ? `Mã OTP đã được gửi đến email ${user.email_display}. Vui lòng kiểm tra hộp thư.`
-          : `Mã OTP xác thực đăng nhập của bạn là: ${rawCode}`,
-        devOtpCode: rawCode,
-        emailSent,
+        message: `Mã xác thực OTP gồm 6 chữ số đã được gửi tới email ${user.email_display}. Vui lòng mở hộp thư đến (kiểm tra cả Spam/Quảng cáo) để lấy mã và nhập vào ô bên dưới.`,
         emailDisplay: user.email_display,
       });
     }

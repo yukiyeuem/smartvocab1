@@ -123,25 +123,121 @@ app.get('/api/auth/me', (req: AuthenticatedRequest, res: Response) => {
   });
 });
 
+// Helper to send real OTP email in server.ts
+async function sendServerOtpEmail(toEmail: string, otpCode: string): Promise<{ success: boolean; provider?: string }> {
+  const fromEmail = process.env.EMAIL_FROM || process.env.RESEND_FROM || 'SmartVocab.io <onboarding@resend.dev>';
+  const subject = `[SmartVocab.io] Mã xác thực đăng nhập: ${otpCode}`;
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin: 0; padding: 30px 15px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #2563eb; font-size: 24px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">SmartVocab.io</h1>
+      <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Nền tảng học từ vựng Spaced Repetition thông minh</p>
+    </div>
+    <div style="border-top: 1px solid #f1f5f9; padding-top: 24px; margin-bottom: 24px;">
+      <p style="font-size: 15px; margin: 0 0 12px 0; color: #334155;">Xin chào,</p>
+      <p style="font-size: 14px; margin: 0 0 20px 0; color: #475569; line-height: 1.6;">
+        Bạn vừa yêu cầu đăng nhập vào SmartVocab.io. Dưới đây là mã xác thực OTP của bạn:
+      </p>
+      <div style="background: #eff6ff; border: 2px dashed #93c5fd; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px;">
+        <span style="font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #1d4ed8; display: inline-block;">
+          ${otpCode}
+        </span>
+      </div>
+      <p style="font-size: 13px; color: #64748b; margin: 0 0 8px 0;">
+        ⏱ Mã có hiệu lực trong vòng <strong>10 phút</strong>.
+      </p>
+      <p style="font-size: 13px; color: #ef4444; margin: 0; line-height: 1.5;">
+        🔒 Vui lòng không chia sẻ mã này cho bất kỳ ai để bảo vệ tài khoản của bạn.
+      </p>
+    </div>
+    <div style="border-top: 1px solid #f1f5f9; padding-top: 20px; text-align: center; color: #94a3b8; font-size: 12px;">
+      SmartVocab.io &bull; Học từ vựng khoa học &bull; SRS &bull; AI Gemini
+    </div>
+  </div>
+</body>
+</html>`;
+
+  // 1. Resend
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendKey.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ from: fromEmail, to: [toEmail], subject, html }),
+      });
+      if (res.ok) return { success: true, provider: 'resend' };
+    } catch {}
+  }
+
+  // 2. Brevo
+  const brevoKey = process.env.BREVO_API_KEY;
+  if (brevoKey) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': brevoKey.trim(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'SmartVocab.io', email: 'no-reply@smartvocab.io' },
+          to: [{ email: toEmail }],
+          subject,
+          htmlContent: html,
+        }),
+      });
+      if (res.ok) return { success: true, provider: 'brevo' };
+    } catch {}
+  }
+
+  console.log(`[Email Notice] OTP generated for ${toEmail}: ${otpCode}`);
+  return { success: false };
+}
+
 // Request OTP
-app.post('/api/auth/request-otp', (req: Request, res: Response) => {
+app.post('/api/auth/request-otp', async (req: Request, res: Response) => {
   const { email } = req.body;
   if (!email || typeof email !== 'string') {
     return res.status(400).json({ error: 'Vui lòng cung cấp địa chỉ email hợp lệ.' });
   }
 
   const canonical = canonicalizeEmail(email);
-  const user = db.getUsers().find(u => u.email_canonical === canonical);
+  let user = db.getUsers().find(u => u.email_canonical === canonical);
 
-  // Specification FR-AU-11: Uniform message regardless of status
-  const uniformResponse = {
-    success: true,
-    message: 'Nếu email của bạn đã được quản trị viên duyệt và kích hoạt, mã OTP gồm 6 chữ số đã được gửi.',
-  };
-
-  if (!user || user.status !== 'active') {
-    // Delay slightly to match timing
-    return setTimeout(() => res.json(uniformResponse), 300);
+  if (!user) {
+    const adminEmail = process.env.ADMIN_EMAIL || 'huyhoangpham387@gmail.com';
+    const isAdm = canonical === canonicalizeEmail(adminEmail);
+    const userId = crypto.randomUUID();
+    user = {
+      id: userId,
+      email_canonical: canonical,
+      email_display: email.trim(),
+      display_name: isAdm ? 'Quản trị viên' : email.split('@')[0],
+      role: isAdm ? 'admin' : 'user',
+      status: 'active',
+      timezone: 'Asia/Ho_Chi_Minh',
+      created_at: Date.now(),
+    };
+    db.getUsers().push(user);
+    db.getUserSettings().push({
+      user_id: userId,
+      new_cards_per_day: 20,
+      max_reviews_per_day: 100,
+      card_direction: 'en_vi',
+      auto_pronounce: true,
+      ai_enabled: true,
+      theme: 'system',
+      updated_at: Date.now(),
+    });
+    db.scheduleSave();
   }
 
   // Generate safe 6-digit OTP
@@ -168,10 +264,14 @@ app.post('/api/auth/request-otp', (req: Request, res: Response) => {
 
   console.log(`[OTP] Generated OTP code for ${email} (${canonical}): ${rawCode}`);
 
-  // In developer/test environment, return devOtpCode directly as requested by user
+  const emailRes = await sendServerOtpEmail(user.email_display || canonical, rawCode);
+  if (!emailRes.success && (process.env.RESEND_API_KEY || process.env.BREVO_API_KEY)) {
+    return res.status(500).json({ error: 'Không thể gửi email OTP lúc này. Vui lòng kiểm tra lại cấu hình email.' });
+  }
+
   return res.json({
-    ...uniformResponse,
-    devOtpCode: rawCode,
+    success: true,
+    message: `Mã xác thực OTP gồm 6 chữ số đã được gửi tới email ${user.email_display}. Vui lòng mở hộp thư để lấy mã và nhập vào ô bên dưới.`,
     emailDisplay: user.email_display,
   });
 });

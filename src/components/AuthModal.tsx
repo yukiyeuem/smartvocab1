@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, KeyRound, UserCheck, ArrowRight, CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react';
+import { Mail, KeyRound, UserCheck, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { apiRequest, setStoredSessionToken } from '../lib/api';
 import { User, UserSettings } from '../types';
 
@@ -24,10 +24,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Dev OTP test banner support
-  const [devOtp, setDevOtp] = useState<string | null>(null);
-  const [copiedOtp, setCopiedOtp] = useState(false);
-
   // Request form state
   const [reqName, setReqName] = useState('');
   const [reqNote, setReqNote] = useState('');
@@ -46,6 +42,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (isOpen) {
       setError(null);
       setSuccessMsg(null);
+      setOtpCode('');
       if (initialEmail) setEmail(initialEmail);
     }
   }, [isOpen, initialEmail]);
@@ -74,19 +71,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setSuccessMsg(null);
 
     try {
-      const data = await apiRequest<{ success: boolean; message: string; devOtpCode?: string }>('/api/auth/request-otp', {
+      const data = await apiRequest<{ success: boolean; message: string }>('/api/auth/request-otp', {
         method: 'POST',
         body: JSON.stringify({ email: email.trim() }),
       });
 
       setSuccessMsg(data.message);
       setStep('otp');
+      setOtpCode('');
       setResendTimer(60);
-
-      if (data.devOtpCode) {
-        setDevOtp(data.devOtpCode);
-        setOtpCode(data.devOtpCode); // Tự động điền mã test để thao tác thuận tiện
-      }
     } catch (err: any) {
       setError(err.message || 'Không thể gửi mã OTP.');
     } finally {
@@ -94,37 +87,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleSelectQuickEmail = async (targetEmail: string) => {
+  const handleSelectQuickEmail = (targetEmail: string) => {
     setEmail(targetEmail);
     setError(null);
-    setLoading(true);
-    setSuccessMsg(null);
-
-    try {
-      const data = await apiRequest<{ success: boolean; message: string; devOtpCode?: string }>('/api/auth/request-otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: targetEmail }),
-      });
-
-      setSuccessMsg(data.message);
-      setStep('otp');
-      setResendTimer(60);
-
-      if (data.devOtpCode) {
-        setDevOtp(data.devOtpCode);
-        setOtpCode(data.devOtpCode);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Không thể gửi mã OTP.');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otpCode.trim() || otpCode.trim().length !== 6) {
-      setError('Mã OTP gồm 6 chữ số.');
+      setError('Mã OTP gồm đúng 6 chữ số từ email của bạn.');
       return;
     }
 
@@ -146,17 +117,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onClose();
       }
     } catch (err: any) {
-      setError(err.message || 'Xác thực OTP thất bại.');
+      setError(err.message || 'Xác thực OTP thất bại. Vui lòng kiểm tra lại mã đã nhận.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleCopyAndPasteOtp = () => {
-    if (!devOtp) return;
-    setOtpCode(devOtp);
-    setCopiedOtp(true);
-    setTimeout(() => setCopiedOtp(false), 2000);
   };
 
   const handleSendAccessRequest = async (e: React.FormEvent) => {
@@ -241,25 +205,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         </div>
 
-        {/* Dev OTP interactive test banner */}
-        {devOtp && step === 'otp' && (
-          <div className="bg-sky-50 dark:bg-sky-950/40 border-b border-sky-100 dark:border-sky-900/50 px-6 py-3 flex items-center justify-between gap-3 text-sky-900 dark:text-sky-200">
-            <div className="text-xs">
-              <span className="font-semibold">Mã thử nghiệm: </span>
-              <span className="font-mono text-base font-bold text-sky-600 dark:text-sky-400 tracking-wider">
-                {devOtp}
-              </span>
-            </div>
-            <button
-              onClick={handleCopyAndPasteOtp}
-              className="px-2.5 py-1 text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-md flex items-center gap-1 shadow-xs"
-            >
-              {copiedOtp ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedOtp ? 'Đã điền' : 'Tự điền mã'}</span>
-            </button>
-          </div>
-        )}
-
         {/* Modal Body */}
         <div className="p-6">
           {error && (
@@ -279,10 +224,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {tab === 'login' ? (
             step === 'email' ? (
               <form onSubmit={handleRequestOtp} className="space-y-4">
-                {/* Quick Test Accounts Helper */}
+                {/* Quick Fill Email Helper */}
                 <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-100 dark:border-blue-900/50 space-y-2">
                   <div className="flex items-center justify-between text-[11px] font-semibold text-blue-800 dark:text-blue-300">
-                    <span>⚡ Chọn nhanh tài khoản thử nghiệm:</span>
+                    <span>⚡ Điền nhanh địa chỉ email:</span>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <button
@@ -292,7 +237,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       className="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-left font-medium flex items-center justify-between transition-colors shadow-2xs"
                     >
                       <span>🔑 <strong>Admin:</strong> huyhoangpham387@gmail.com</span>
-                      <span className="text-[10px] text-blue-500 font-semibold">Đăng nhập Admin →</span>
+                      <span className="text-[10px] text-blue-500 font-semibold">Bấm để điền →</span>
                     </button>
                     <button
                       type="button"
@@ -301,14 +246,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       className="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-left font-medium flex items-center justify-between transition-colors shadow-2xs"
                     >
                       <span>👤 <strong>Học viên:</strong> huyhoangpham280102@gmail.com</span>
-                      <span className="text-[10px] text-slate-500 font-semibold">Đăng nhập Học viên →</span>
+                      <span className="text-[10px] text-slate-500 font-semibold">Bấm để điền →</span>
                     </button>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Địa chỉ Email (Gmail)
+                    Địa chỉ Email nhận mã OTP
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -322,7 +267,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     />
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1.5">
-                    Hệ thống sẽ gửi mã OTP 6 số đến email đã được duyệt.
+                    Hệ thống sẽ gửi mã OTP gồm 6 chữ số vào hòm thư email này.
                   </p>
                 </div>
 
@@ -331,23 +276,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   disabled={loading}
                   className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <span>{loading ? 'Đang gửi mã...' : 'Nhận mã OTP'}</span>
+                  <span>{loading ? 'Đang gửi mã tới email...' : 'Gửi mã OTP về email'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 rounded-xl border border-blue-100 dark:border-blue-900/50 flex items-start gap-3">
+                  <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-blue-900 dark:text-blue-200">
+                    <div>Mã xác thực OTP gồm 6 chữ số đã được gửi tới:</div>
+                    <div className="font-bold text-blue-700 dark:text-blue-300 text-sm mt-0.5">{email}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Vui lòng mở hộp thư email của bạn (kiểm tra cả mục <strong>Hộp thư đến</strong> và <strong>Thư rác/Spam</strong>), sau đó nhập mã OTP 6 số vào ô bên dưới.
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Nhập mã OTP 6 chữ số
+                      Nhập mã OTP 6 chữ số từ email
                     </label>
                     <button
                       type="button"
                       onClick={() => setStep('email')}
                       className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                     >
-                      Đổi email
+                      Đổi email khác
                     </button>
                   </div>
                   <div className="relative">
@@ -359,12 +315,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       required
                       value={otpCode}
                       onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="123456"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center text-lg tracking-widest font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                      placeholder="______"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center text-xl tracking-[0.4em] font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                     />
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1.5">
-                    Mã xác thực có hiệu lực trong 10 phút.
+                    Mã xác thực có hiệu lực trong vòng 10 phút.
                   </p>
                 </div>
 
@@ -373,7 +329,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   disabled={loading || otpCode.length !== 6}
                   className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <span>{loading ? 'Đang xác thực...' : 'Đăng nhập ngay'}</span>
+                  <span>{loading ? 'Đang xác thực...' : 'Xác thực & Đăng nhập'}</span>
                   <CheckCircle2 className="w-4 h-4" />
                 </button>
 
@@ -386,7 +342,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   >
                     {resendTimer > 0
                       ? `Gửi lại mã sau ${resendTimer}s`
-                      : 'Chưa nhận được mã? Gửi lại'}
+                      : 'Chưa nhận được mã? Gửi lại mã'}
                   </button>
                 </div>
               </form>
