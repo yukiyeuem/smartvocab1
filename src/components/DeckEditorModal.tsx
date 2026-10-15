@@ -619,136 +619,143 @@ export const DeckEditorModal: React.FC<DeckEditorModalProps> = ({
                     </div>
                   )}
 
-                  {aiSuggestions[idx] && (
-                    <div className="mt-2.5 p-3.5 bg-blue-50/70 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-800/80 space-y-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 dark:border-blue-900/50 pb-2">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-800 dark:text-blue-300">
-                          <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                          <span>Đề xuất AI cho "{aiSuggestions[idx]?.term}"</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => applyAllAiSuggestions(idx)}
-                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
-                        >
-                          <Check className="w-3 h-3" />
-                          <span>Áp dụng tất cả đề xuất vào thẻ</span>
-                        </button>
-                      </div>
+                  {(() => {
+                    const sug = aiSuggestions[idx];
+                    if (!sug) return null;
+                    const senses = Array.isArray(sug.senses) ? sug.senses : [];
+                    const firstSense = senses[0];
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        {/* Gợi ý Nghĩa tiếng Việt & Từ loại */}
-                        <div className="p-2.5 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/70 space-y-1.5">
-                          <span className="text-[11px] font-semibold text-slate-500 block">
-                            Nghĩa tiếng Việt & Loại từ (click để áp dụng):
-                          </span>
-                          <div className="flex flex-wrap gap-1">
-                            {aiSuggestions[idx]?.senses.map((s, sIdx) => (
+                    return (
+                      <div className="mt-2.5 p-3.5 bg-blue-50/70 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-800/80 space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 dark:border-blue-900/50 pb-2">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-blue-800 dark:text-blue-300">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            <span>Đề xuất AI cho "{sug.term}"</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => applyAllAiSuggestions(idx)}
+                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>Áp dụng tất cả đề xuất vào thẻ</span>
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          {/* Gợi ý Nghĩa tiếng Việt & Từ loại */}
+                          <div className="p-2.5 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/70 space-y-1.5">
+                            <span className="text-[11px] font-semibold text-slate-500 block">
+                              Nghĩa tiếng Việt & Loại từ (click để áp dụng):
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {senses.map((s, sIdx) => (
+                                <button
+                                  key={sIdx}
+                                  type="button"
+                                  onClick={() => {
+                                    updateCardField(idx, 'meaning_vi', s.meaning_vi);
+                                    if (s.pos) updateCardField(idx, 'part_of_speech', s.pos);
+                                    if (s.phonetic) updateCardField(idx, 'phonetic', s.phonetic);
+                                  }}
+                                  className="px-2 py-1 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-200 rounded-lg text-[11px] font-medium text-left border border-blue-100 dark:border-blue-800"
+                                >
+                                  <span className="font-semibold italic text-blue-600 dark:text-blue-400">[{s.pos || 'từ'}]</span> {s.meaning_vi}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Phiên âm IPA & Nhóm họ từ */}
+                          <div className="p-2.5 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/70 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold text-slate-500">Phiên âm:</span>
                               <button
-                                key={sIdx}
                                 type="button"
-                                onClick={() => {
-                                  updateCardField(idx, 'meaning_vi', s.meaning_vi);
-                                  if (s.pos) updateCardField(idx, 'part_of_speech', s.pos);
-                                  if (s.phonetic) updateCardField(idx, 'phonetic', s.phonetic);
-                                }}
-                                className="px-2 py-1 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-200 rounded-lg text-[11px] font-medium text-left border border-blue-100 dark:border-blue-800"
+                                onClick={() => updateCardField(idx, 'phonetic', sug.phonetic || firstSense?.phonetic || '')}
+                                className="font-mono text-emerald-600 dark:text-emerald-400 hover:underline font-semibold"
                               >
-                                <span className="font-semibold italic text-blue-600 dark:text-blue-400">[{s.pos}]</span> {s.meaning_vi}
+                                {sug.phonetic || firstSense?.phonetic || 'Chưa rõ'}
                               </button>
-                            ))}
-                          </div>
-                        </div>
+                            </div>
 
-                        {/* Phiên âm IPA & Nhóm họ từ */}
-                        <div className="p-2.5 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/70 space-y-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-semibold text-slate-500">Phiên âm:</span>
-                            <button
-                              type="button"
-                              onClick={() => updateCardField(idx, 'phonetic', aiSuggestions[idx]?.phonetic || aiSuggestions[idx]?.senses[0]?.phonetic || '')}
-                              className="font-mono text-emerald-600 dark:text-emerald-400 hover:underline font-semibold"
-                            >
-                              {aiSuggestions[idx]?.phonetic || aiSuggestions[idx]?.senses[0]?.phonetic || 'Chưa rõ'}
-                            </button>
+                            {Array.isArray(sug.word_family) && sug.word_family.length > 0 && (
+                              <div>
+                                <span className="text-[11px] font-semibold text-slate-500 block mb-1">
+                                  Nhóm họ từ (click để chọn):
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {sug.word_family.map((wf, wfIdx) => (
+                                    <button
+                                      key={wfIdx}
+                                      type="button"
+                                      onClick={() => updateCardField(idx, 'group_name', wf)}
+                                      className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded text-[11px]"
+                                    >
+                                      {wf}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
 
-                          {aiSuggestions[idx]?.word_family && aiSuggestions[idx]!.word_family!.length > 0 && (
-                            <div>
-                              <span className="text-[11px] font-semibold text-slate-500 block mb-1">
-                                Nhóm họ từ (click để chọn):
-                              </span>
-                              <div className="flex flex-wrap gap-1">
-                                {aiSuggestions[idx]!.word_family!.map((wf, wfIdx) => (
-                                  <button
-                                    key={wfIdx}
-                                    type="button"
-                                    onClick={() => updateCardField(idx, 'group_name', wf)}
-                                    className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded text-[11px]"
+                          {/* Định nghĩa tiếng Anh & Ví dụ */}
+                          {firstSense?.definition_en && (
+                            <div className="p-2.5 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/70 sm:col-span-2 space-y-1.5">
+                              <div>
+                                <span className="text-[11px] font-semibold text-slate-500 block">Định nghĩa tiếng Anh (click để điền):</span>
+                                <p
+                                  onClick={() => updateCardField(idx, 'definition_en', firstSense.definition_en)}
+                                  className="text-slate-700 dark:text-slate-300 italic cursor-pointer hover:text-blue-600 text-xs"
+                                >
+                                  "{firstSense.definition_en}"
+                                </p>
+                              </div>
+
+                              {firstSense?.examples?.[0] && (
+                                <div>
+                                  <span className="text-[11px] font-semibold text-slate-500 block">Câu ví dụ (click để điền):</span>
+                                  <p
+                                    onClick={() => updateCardField(idx, 'example', firstSense.examples[0])}
+                                    className="text-slate-700 dark:text-slate-300 cursor-pointer hover:text-blue-600 text-xs"
                                   >
-                                    {wf}
-                                  </button>
-                                ))}
+                                    {firstSense.examples[0]}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Đồng nghĩa / Trái nghĩa */}
+                              <div className="flex flex-wrap gap-4 pt-1.5 border-t border-slate-100 dark:border-slate-700 text-[11px]">
+                                {Array.isArray(firstSense.synonyms) && firstSense.synonyms.length > 0 && (
+                                  <span>
+                                    Đồng nghĩa:{' '}
+                                    <strong
+                                      onClick={() => updateCardField(idx, 'synonyms', firstSense.synonyms.map((s: any) => typeof s === 'string' ? s : s.word).join('; '))}
+                                      className="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                                    >
+                                      {firstSense.synonyms.map((s: any) => typeof s === 'string' ? s : s.word).join(', ')}
+                                    </strong>
+                                  </span>
+                                )}
+                                {Array.isArray(firstSense.antonyms) && firstSense.antonyms.length > 0 && (
+                                  <span>
+                                    Trái nghĩa:{' '}
+                                    <strong
+                                      onClick={() => updateCardField(idx, 'antonyms', firstSense.antonyms.join('; '))}
+                                      className="text-red-500 cursor-pointer hover:underline"
+                                    >
+                                      {firstSense.antonyms.join(', ')}
+                                    </strong>
+                                  </span>
+                                )}
                               </div>
                             </div>
                           )}
                         </div>
-
-                        {/* Định nghĩa tiếng Anh & Ví dụ */}
-                        {aiSuggestions[idx]?.senses[0]?.definition_en && (
-                          <div className="p-2.5 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/70 sm:col-span-2 space-y-1.5">
-                            <div>
-                              <span className="text-[11px] font-semibold text-slate-500 block">Định nghĩa tiếng Anh (click để điền):</span>
-                              <p
-                                onClick={() => updateCardField(idx, 'definition_en', aiSuggestions[idx]!.senses[0].definition_en)}
-                                className="text-slate-700 dark:text-slate-300 italic cursor-pointer hover:text-blue-600 text-xs"
-                              >
-                                "{aiSuggestions[idx]!.senses[0].definition_en}"
-                              </p>
-                            </div>
-
-                            {aiSuggestions[idx]?.senses[0]?.examples?.[0] && (
-                              <div>
-                                <span className="text-[11px] font-semibold text-slate-500 block">Câu ví dụ (click để điền):</span>
-                                <p
-                                  onClick={() => updateCardField(idx, 'example', aiSuggestions[idx]!.senses[0].examples[0])}
-                                  className="text-slate-700 dark:text-slate-300 cursor-pointer hover:text-blue-600 text-xs"
-                                >
-                                  {aiSuggestions[idx]!.senses[0].examples[0]}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Đồng nghĩa / Trái nghĩa */}
-                            <div className="flex flex-wrap gap-4 pt-1.5 border-t border-slate-100 dark:border-slate-700 text-[11px]">
-                              {aiSuggestions[idx]!.senses[0]?.synonyms?.length > 0 && (
-                                <span>
-                                  Đồng nghĩa:{' '}
-                                  <strong
-                                    onClick={() => updateCardField(idx, 'synonyms', aiSuggestions[idx]!.senses[0].synonyms.map((s: any) => typeof s === 'string' ? s : s.word).join('; '))}
-                                    className="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                                  >
-                                    {aiSuggestions[idx]!.senses[0].synonyms.map((s: any) => typeof s === 'string' ? s : s.word).join(', ')}
-                                  </strong>
-                                </span>
-                              )}
-                              {aiSuggestions[idx]!.senses[0]?.antonyms?.length > 0 && (
-                                <span>
-                                  Trái nghĩa:{' '}
-                                  <strong
-                                    onClick={() => updateCardField(idx, 'antonyms', aiSuggestions[idx]!.senses[0].antonyms.join('; '))}
-                                    className="text-red-500 cursor-pointer hover:underline"
-                                  >
-                                    {aiSuggestions[idx]!.senses[0].antonyms.join(', ')}
-                                  </strong>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Complete Card Fields Display (IPA, POS, Word Family, Definition, Example, Synonyms, Antonyms) */}
                   <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-3">

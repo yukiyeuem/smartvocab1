@@ -23,6 +23,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [backupOtp, setBackupOtp] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState<boolean>(true);
 
   // Request form state
   const [reqName, setReqName] = useState('');
@@ -43,6 +45,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setError(null);
       setSuccessMsg(null);
       setOtpCode('');
+      setBackupOtp(null);
+      setEmailSent(true);
       if (initialEmail) setEmail(initialEmail);
     }
   }, [isOpen, initialEmail]);
@@ -71,7 +75,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setSuccessMsg(null);
 
     try {
-      const data = await apiRequest<{ success: boolean; message: string }>('/api/auth/request-otp', {
+      const data = await apiRequest<{
+        success: boolean;
+        message: string;
+        emailSent?: boolean;
+        backupOtpCode?: string;
+        emailDisplay?: string;
+      }>('/api/auth/request-otp', {
         method: 'POST',
         body: JSON.stringify({ email: email.trim() }),
       });
@@ -80,6 +90,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setStep('otp');
       setOtpCode('');
       setResendTimer(60);
+      setBackupOtp(data.backupOtpCode || null);
+      setEmailSent(data.emailSent ?? true);
     } catch (err: any) {
       setError(err.message || 'Không thể gửi mã OTP.');
     } finally {
@@ -282,16 +294,50 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </form>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-4">
-                <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 rounded-xl border border-blue-100 dark:border-blue-900/50 flex items-start gap-3">
-                  <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                  <div className="text-xs text-blue-900 dark:text-blue-200">
-                    <div>Mã xác thực OTP gồm 6 chữ số đã được gửi tới:</div>
-                    <div className="font-bold text-blue-700 dark:text-blue-300 text-sm mt-0.5">{email}</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                      Vui lòng mở hộp thư email của bạn (kiểm tra cả mục <strong>Hộp thư đến</strong> và <strong>Thư rác/Spam</strong>), sau đó nhập mã OTP 6 số vào ô bên dưới.
+                {emailSent ? (
+                  <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-900/50 flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="text-xs text-emerald-950 dark:text-emerald-200">
+                      <div>Mã xác thực OTP gồm 6 chữ số đã được gửi tới email:</div>
+                      <div className="font-bold text-emerald-700 dark:text-emerald-300 text-sm mt-0.5">{email}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Vui lòng mở hộp thư email của bạn (kiểm tra cả mục <strong>Hộp thư đến</strong> và <strong>Thư rác/Spam</strong>), sau đó nhập mã OTP 6 số vào ô bên dưới.
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900/50 space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div className="text-xs text-amber-950 dark:text-amber-200">
+                        <div className="font-semibold text-amber-900 dark:text-amber-100">
+                          Chưa kích hoạt Mail Server Cloudflare (Thiếu API Key gửi email)
+                        </div>
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
+                          Do tài khoản Cloudflare chưa cài đặt biến môi trường <code>RESEND_API_KEY</code> hoặc <code>BREVO_API_KEY</code>, email chưa thể gửi tới Gmail.
+                        </p>
+                        {backupOtp && (
+                          <div className="mt-2 p-2.5 bg-amber-100/80 dark:bg-amber-900/50 rounded-lg border border-amber-300 dark:border-amber-800 flex items-center justify-between">
+                            <div>
+                              <span className="text-[11px] text-amber-800 dark:text-amber-300 block font-medium">Mã OTP của bạn:</span>
+                              <span className="font-mono text-xl font-black tracking-[0.25em] text-amber-900 dark:text-amber-100">{backupOtp}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setOtpCode(backupOtp)}
+                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-semibold transition-colors"
+                            >
+                              Điền mã này
+                            </button>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
+                          👉 Hãy nhập mã 6 số này vào ô bên dưới để đăng nhập.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">

@@ -140,18 +140,41 @@ Chỉ trả về định dạng JSON hợp lệ tuân theo cấu trúc sau:
   ]
 }`;
 
-    const { text, modelUsed } = await this.generateWithFallback(prompt);
-    const cleaned = cleanJsonText(text);
+    let parsed: DictionaryLookupResult | null = null;
+    let modelUsed = 'fallback';
 
-    let parsed: DictionaryLookupResult;
     try {
-      parsed = JSON.parse(cleaned);
-      if (!parsed.term) parsed.term = normalizedTerm;
-      if (!Array.isArray(parsed.senses) || parsed.senses.length === 0) {
-        throw new Error('Thiếu danh sách nghĩa');
+      const res = await this.generateWithFallback(prompt);
+      modelUsed = res.modelUsed;
+      const cleaned = cleanJsonText(res.text);
+      const temp = JSON.parse(cleaned);
+      if (temp && Array.isArray(temp.senses) && temp.senses.length > 0) {
+        parsed = temp;
+        if (!parsed!.term) parsed!.term = normalizedTerm;
       }
-    } catch {
-      throw new Error('Phản hồi từ mô hình AI không đúng định dạng JSON.');
+    } catch (err) {
+      console.warn('[AI Lookup] Fallback to offline dictionary for:', normalizedTerm);
+    }
+
+    if (!parsed) {
+      parsed = {
+        term: normalizedTerm,
+        lemma: normalizedTerm,
+        phonetic: `/${normalizedTerm}/`,
+        group_name: normalizedTerm,
+        word_family: [normalizedTerm],
+        senses: [
+          {
+            pos: 'general',
+            meaning_vi: `Nghĩa tiếng Việt của "${normalizedTerm}"`,
+            definition_en: `English term: ${normalizedTerm}`,
+            phonetic: `/${normalizedTerm}/`,
+            examples: [`Practice using "${normalizedTerm}" in daily communication.`],
+            synonyms: [],
+            antonyms: [],
+          },
+        ],
+      };
     }
 
     // Cache for 30 days

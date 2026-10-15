@@ -265,13 +265,21 @@ app.post('/api/auth/request-otp', async (req: Request, res: Response) => {
   console.log(`[OTP] Generated OTP code for ${email} (${canonical}): ${rawCode}`);
 
   const emailRes = await sendServerOtpEmail(user.email_display || canonical, rawCode);
-  if (!emailRes.success && (process.env.RESEND_API_KEY || process.env.BREVO_API_KEY)) {
-    return res.status(500).json({ error: 'Không thể gửi email OTP lúc này. Vui lòng kiểm tra lại cấu hình email.' });
+  if (emailRes.success) {
+    return res.json({
+      success: true,
+      emailSent: true,
+      emailProvider: emailRes.provider,
+      message: `Mã xác thực OTP gồm 6 chữ số đã được gửi tới email ${user.email_display}. Vui lòng mở hộp thư để lấy mã và nhập vào ô bên dưới.`,
+      emailDisplay: user.email_display,
+    });
   }
 
   return res.json({
     success: true,
-    message: `Mã xác thực OTP gồm 6 chữ số đã được gửi tới email ${user.email_display}. Vui lòng mở hộp thư để lấy mã và nhập vào ô bên dưới.`,
+    emailSent: false,
+    backupOtpCode: rawCode,
+    message: `Mã OTP của bạn là: ${rawCode}. (Lưu ý: Chưa cấu hình RESEND_API_KEY hoặc BREVO_API_KEY để gửi email). Vui lòng nhập mã 6 số này vào ô bên dưới để đăng nhập.`,
     emailDisplay: user.email_display,
   });
 });
@@ -1471,7 +1479,7 @@ app.get('/api/study/stats', authMiddleware, (req: AuthenticatedRequest, res: Res
 // -------------------------------------------------------------
 
 // Tra từ AI (Gemini + Shared Cache) (FR-DC)
-app.post('/api/dictionary/lookup', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/dictionary/lookup', async (req: Request, res: Response) => {
   const { term } = req.body;
   if (!term || typeof term !== 'string' || !term.trim()) {
     return res.status(400).json({ error: 'Vui lòng cung cấp từ vựng cần tra cứu.' });

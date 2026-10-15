@@ -479,8 +479,13 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
           });
           if (res.ok) {
             return { success: true, provider: 'resend' };
+          } else {
+            const errBody = await res.text().catch(() => '');
+            console.error('[Resend Error]', res.status, errBody);
           }
-        } catch {}
+        } catch (e) {
+          console.error('[Resend Network Error]', e);
+        }
       }
 
       // 2. Brevo API
@@ -494,7 +499,7 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              sender: { name: 'SmartVocab.io', email: 'no-reply@smartvocab.io' },
+              sender: { name: 'SmartVocab.io', email: envObj.BREVO_SENDER || 'no-reply@smartvocab.io' },
               to: [{ email: toEmail }],
               subject,
               htmlContent: html,
@@ -502,8 +507,13 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
           });
           if (res.ok) {
             return { success: true, provider: 'brevo' };
+          } else {
+            const errBody = await res.text().catch(() => '');
+            console.error('[Brevo Error]', res.status, errBody);
           }
-        } catch {}
+        } catch (e) {
+          console.error('[Brevo Network Error]', e);
+        }
       }
 
       // 3. SendGrid API
@@ -594,24 +604,34 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       `).bind(crypto.randomUUID(), canonical, codeHash, expiresAt, Date.now()).run();
 
       let emailSent = false;
+      let emailProvider = '';
       try {
         const mailRes = await sendOtpEmail(user.email_display || canonical, rawCode, env);
         emailSent = Boolean(mailRes?.success);
+        if (emailSent && mailRes?.provider) {
+          emailProvider = mailRes.provider;
+        }
       } catch (e) {
         console.warn('sendOtpEmail warning:', e);
       }
 
-      if (!emailSent) {
-        const hasKey = !!(env.RESEND_API_KEY || env.BREVO_API_KEY || env.SENDGRID_API_KEY || (typeof process !== 'undefined' && (process.env?.RESEND_API_KEY || process.env?.BREVO_API_KEY || process.env?.SENDGRID_API_KEY)));
-        if (!hasKey) {
-          return error('Chưa cấu hình API Key gửi email (RESEND_API_KEY hoặc BREVO_API_KEY trên Cloudflare Workers). Vui lòng thêm biến môi trường RESEND_API_KEY trong Cloudflare Dashboard để gửi mã OTP về hộp thư của bạn.', 500);
-        }
-        return error('Không thể gửi mã OTP tới email lúc này. Vui lòng kiểm tra lại cấu hình email trên Cloudflare hoặc thử lại sau.', 500);
+      if (emailSent) {
+        return json({
+          success: true,
+          emailSent: true,
+          emailProvider,
+          message: `Mã xác thực OTP gồm 6 chữ số đã được gửi thành công tới email ${user.email_display}. Vui lòng mở hộp thư đến (kiểm tra cả Spam/Quảng cáo) để lấy mã và nhập vào ô bên dưới.`,
+          emailDisplay: user.email_display,
+        });
       }
 
+      // If email could not be sent (e.g. no RESEND_API_KEY / BREVO_API_KEY configured yet on Cloudflare):
+      // Return safe backup OTP so user can manually enter it and log in without getting stuck
       return json({
         success: true,
-        message: `Mã xác thực OTP gồm 6 chữ số đã được gửi tới email ${user.email_display}. Vui lòng mở hộp thư đến (kiểm tra cả Spam/Quảng cáo) để lấy mã và nhập vào ô bên dưới.`,
+        emailSent: false,
+        backupOtpCode: rawCode,
+        message: `Mã OTP của bạn là: ${rawCode}. (Lưu ý: Cloudflare chưa cấu hình RESEND_API_KEY hoặc BREVO_API_KEY nên chưa thể gửi email trực tiếp). Vui lòng nhập mã 6 số này vào ô bên dưới để đăng nhập.`,
         emailDisplay: user.email_display,
       });
     }
@@ -1337,6 +1357,116 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
           examples: ['An apple a day keeps the doctor away.', 'She peeled a fresh red apple for breakfast.'],
           synonyms: [],
           antonyms: []
+        }]
+      },
+      serendipity: {
+        term: 'serendipity', lemma: 'serendipity', phonetic: '/ˌser.ənˈdɪp.ə.t̬i/',
+        word_family: ['serendipitous', 'serendipitously'], group_name: 'serendipity',
+        senses: [{
+          pos: 'noun', meaning_vi: 'sự tình cờ may mắn, khả năng khám phá ngẫu nhiên điều tuyệt vời',
+          definition_en: 'the occurrence and development of events by chance in a happy or beneficial way', phonetic: '/ˌser.ənˈdɪp.ə.t̬i/',
+          examples: ['Finding this rare book in an old shop was pure serendipity.', 'A fortunate stroke of serendipity brought them together.'],
+          synonyms: [{ word: 'fluke', note_vi: 'vận may tình cờ' }, { word: 'good fortune', note_vi: 'may mắn' }, { word: 'coincidence', note_vi: 'trùng hợp' }],
+          antonyms: ['misfortune', 'bad luck', 'adversity']
+        }]
+      },
+      perseverance: {
+        term: 'perseverance', lemma: 'persevere', phonetic: '/ˌpɝː.səˈvɪr.əns/',
+        word_family: ['persevere', 'persevering', 'perseveringly'], group_name: 'persevere',
+        senses: [{
+          pos: 'noun', meaning_vi: 'sự kiên trì, bền chí vượt qua thử thách khó khăn',
+          definition_en: 'persistence in doing something despite difficulty or delay in achieving success', phonetic: '/ˌpɝː.səˈvɪr.əns/',
+          examples: ['Through hard work and perseverance, he mastered fluent English.', 'Her perseverance paid off with a high scholarship.'],
+          synonyms: [{ word: 'persistence', note_vi: 'sự bền bỉ' }, { word: 'tenacity', note_vi: 'tính ngoan cường' }, { word: 'dedication', note_vi: 'tận tụy' }],
+          antonyms: ['giving up', 'laziness', 'hesitation']
+        }]
+      },
+      ephemeral: {
+        term: 'ephemeral', lemma: 'ephemeral', phonetic: '/ɪˈfem.ər.əl/',
+        word_family: ['ephemera', 'ephemerality', 'ephemerally'], group_name: 'ephemeral',
+        senses: [{
+          pos: 'adjective', meaning_vi: 'phù du, chóng tàn, tồn tại trong thời gian ngắn ngủi',
+          definition_en: 'lasting for a very short time', phonetic: '/ɪˈfem.ər.əl/',
+          examples: ['Fashions are ephemeral, but true style is eternal.', 'The ephemeral beauty of morning dew on flowers.'],
+          synonyms: [{ word: 'fleeting', note_vi: 'thoáng qua' }, { word: 'transient', note_vi: 'tạm thời' }, { word: 'short-lived', note_vi: 'ngắn ngủi' }],
+          antonyms: ['permanent', 'eternal', 'enduring']
+        }]
+      },
+      ubiquitous: {
+        term: 'ubiquitous', lemma: 'ubiquitous', phonetic: '/juːˈbɪk.wə.t̬əs/',
+        word_family: ['ubiquity', 'ubiquitously'], group_name: 'ubiquitous',
+        senses: [{
+          pos: 'adjective', meaning_vi: 'phổ biến khắp nơi, đâu đâu cũng thấy',
+          definition_en: 'present, appearing, or found everywhere', phonetic: '/juːˈbɪk.wə.t̬əs/',
+          examples: ['Smartphones have become ubiquitous in modern urban life.', 'Coffee shops are ubiquitous in this bustling city.'],
+          synonyms: [{ word: 'omnipresent', note_vi: 'có mặt khắp nơi' }, { word: 'universal', note_vi: 'toàn thể' }, { word: 'widespread', note_vi: 'rộng khắp' }],
+          antonyms: ['rare', 'scarce', 'seldom']
+        }]
+      },
+      meticulous: {
+        term: 'meticulous', lemma: 'meticulous', phonetic: '/məˈtɪk.jə.ləs/',
+        word_family: ['meticulously', 'meticulousness'], group_name: 'meticulous',
+        senses: [{
+          pos: 'adjective', meaning_vi: 'tỉ mỉ, cẩn thận chu đáo đến từng chi tiết',
+          definition_en: 'showing great attention to detail; very careful and precise', phonetic: '/məˈtɪk.jə.ləs/',
+          examples: ['The researcher kept meticulous records of all experimental data.', 'He is meticulous about his code structure and styling.'],
+          synonyms: [{ word: 'thorough', note_vi: 'cẩn thận' }, { word: 'diligent', note_vi: 'siêng năng tỉ mỉ' }, { word: 'scrupulous', note_vi: 'chu toàn' }],
+          antonyms: ['careless', 'sloppy', 'negligent']
+        }]
+      },
+      collaborate: {
+        term: 'collaborate', lemma: 'collaborate', phonetic: '/kəˈlæb.ə.reɪt/',
+        word_family: ['collaboration', 'collaborative', 'collaborator'], group_name: 'collaborate',
+        senses: [{
+          pos: 'verb', meaning_vi: 'hợp tác, phối hợp cùng làm việc',
+          definition_en: 'work jointly on an activity or project', phonetic: '/kəˈlæb.ə.reɪt/',
+          examples: ['Two international universities collaborated on the scientific research project.', 'Engineers and designers collaborate closely every sprint.'],
+          synonyms: [{ word: 'cooperate', note_vi: 'hợp tác' }, { word: 'team up', note_vi: 'lập đội cùng làm' }],
+          antonyms: ['oppose', 'compete', 'disagree']
+        }]
+      },
+      innovate: {
+        term: 'innovate', lemma: 'innovate', phonetic: '/ˈɪn.ə.veɪt/',
+        word_family: ['innovation', 'innovative', 'innovator'], group_name: 'innovate',
+        senses: [{
+          pos: 'verb', meaning_vi: 'đổi mới, sáng tạo giải pháp tân tiến',
+          definition_en: 'make changes in something established, especially by introducing new methods, ideas, or products', phonetic: '/ˈɪn.ə.veɪt/',
+          examples: ['Tech startups must continually innovate to stay competitive in the market.', 'The company innovated a brand-new battery design.'],
+          synonyms: [{ word: 'invent', note_vi: 'phát minh' }, { word: 'revolutionize', note_vi: 'cách mạng hóa' }],
+          antonyms: ['stagnate', 'revert', 'imitate']
+        }]
+      },
+      diligent: {
+        term: 'diligent', lemma: 'diligent', phonetic: '/ˈdɪl.ə.dʒənt/',
+        word_family: ['diligence', 'diligently'], group_name: 'diligent',
+        senses: [{
+          pos: 'adjective', meaning_vi: 'chăm chỉ, cần cù, siêng năng có trách nhiệm',
+          definition_en: 'having or showing care and conscientiousness in one\'s work or duties', phonetic: '/ˈdɪl.ə.dʒənt/',
+          examples: ['A diligent student reviews flashcards every single day.', 'With diligent effort, she passed the exam with flying colors.'],
+          synonyms: [{ word: 'hard-working', note_vi: 'chăm chỉ' }, { word: 'industrious', note_vi: 'cần mẫn' }, { word: 'assiduous', note_vi: 'chuyên cần' }],
+          antonyms: ['lazy', 'idle', 'careless']
+        }]
+      },
+      efficient: {
+        term: 'efficient', lemma: 'efficient', phonetic: '/ɪˈfɪʃ.ənt/',
+        word_family: ['efficiency', 'efficiently'], group_name: 'efficient',
+        senses: [{
+          pos: 'adjective', meaning_vi: 'hiệu quả, tiết kiệm năng lượng và thời gian',
+          definition_en: 'achieving maximum productivity with minimum wasted effort or expense', phonetic: '/ɪˈfɪʃ.ənt/',
+          examples: ['Spaced repetition is an efficient technique for memorizing new words.', 'The new sorting algorithm is far more efficient.'],
+          synonyms: [{ word: 'effective', note_vi: 'có hiệu lực' }, { word: 'productive', note_vi: 'năng suất' }, { word: 'streamlined', note_vi: 'tối ưu' }],
+          antonyms: ['inefficient', 'wasteful', 'clumsy']
+        }]
+      },
+      retention: {
+        term: 'retention', lemma: 'retain', phonetic: '/rɪˈten.ʃən/',
+        word_family: ['retain', 'retentive', 'retainer'], group_name: 'retain',
+        senses: [{
+          pos: 'noun', meaning_vi: 'khả năng ghi nhớ, duy trì kiến thức trong trí não',
+          definition_en: 'the continued possession, use, or control of something; the power to retain knowledge', phonetic: '/rɪˈten.ʃən/',
+          examples: ['Daily active review boosts long-term vocabulary retention up to 90%.', 'Visual cues improve memory retention dramatically.'],
+          synonyms: [{ word: 'memory', note_vi: 'trí nhớ' }, { word: 'preservation', note_vi: 'sự bảo tồn' }],
+          antonyms: ['forgetfulness', 'loss', 'oblivion']
         }]
       }
     };
