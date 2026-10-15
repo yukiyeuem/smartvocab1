@@ -404,6 +404,123 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       });
     }
 
+    // Helper to send real OTP email via Resend, Brevo, SendGrid or Cloudflare email routing
+    async function sendOtpEmail(toEmail: string, otpCode: string, envObj: Env): Promise<{ success: boolean; provider?: string }> {
+      const fromEmail = envObj.EMAIL_FROM || envObj.RESEND_FROM || 'SmartVocab.io <onboarding@resend.dev>';
+      const subject = `[SmartVocab.io] Mã xác thực đăng nhập: ${otpCode}`;
+      const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin: 0; padding: 30px 15px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #2563eb; font-size: 24px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">SmartVocab.io</h1>
+      <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Nền tảng học từ vựng Spaced Repetition thông minh</p>
+    </div>
+    <div style="border-top: 1px solid #f1f5f9; padding-top: 24px; margin-bottom: 24px;">
+      <p style="font-size: 15px; margin: 0 0 12px 0; color: #334155;">Xin chào,</p>
+      <p style="font-size: 14px; margin: 0 0 20px 0; color: #475569; line-height: 1.6;">
+        Bạn vừa yêu cầu đăng nhập vào SmartVocab.io. Dưới đây là mã xác thực OTP của bạn:
+      </p>
+      <div style="background: #eff6ff; border: 2px dashed #93c5fd; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px;">
+        <span style="font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #1d4ed8; display: inline-block;">
+          ${otpCode}
+        </span>
+      </div>
+      <p style="font-size: 13px; color: #64748b; margin: 0 0 8px 0;">
+        ⏱ Mã có hiệu lực trong vòng <strong>10 phút</strong>.
+      </p>
+      <p style="font-size: 13px; color: #ef4444; margin: 0; line-height: 1.5;">
+        🔒 Vui lòng không chia sẻ mã này cho bất kỳ ai để bảo vệ tài khoản của bạn.
+      </p>
+    </div>
+    <div style="border-top: 1px solid #f1f5f9; padding-top: 20px; text-align: center; color: #94a3b8; font-size: 12px;">
+      SmartVocab.io &bull; Học từ vựng khoa học &bull; SRS &bull; AI Gemini
+    </div>
+  </div>
+</body>
+</html>`;
+
+      // 1. Resend API
+      const resendKey = envObj.RESEND_API_KEY || (typeof process !== 'undefined' ? process.env?.RESEND_API_KEY : '');
+      if (resendKey) {
+        try {
+          const res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendKey.trim()}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: fromEmail,
+              to: [toEmail],
+              subject,
+              html,
+            }),
+          });
+          if (res.ok) {
+            console.log(`[Email] OTP sent to ${toEmail} via Resend.`);
+            return { success: true, provider: 'resend' };
+          }
+          console.warn(`[Email] Resend error:`, await res.text());
+        } catch (e: any) {
+          console.error(`[Email] Resend failed:`, e?.message || e);
+        }
+      }
+
+      // 2. Brevo API (Sendinblue)
+      const brevoKey = envObj.BREVO_API_KEY || (typeof process !== 'undefined' ? process.env?.BREVO_API_KEY : '');
+      if (brevoKey) {
+        try {
+          const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+              'api-key': brevoKey.trim(),
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              sender: { name: 'SmartVocab.io', email: 'no-reply@smartvocab.io' },
+              to: [{ email: toEmail }],
+              subject,
+              htmlContent: html,
+            }),
+          });
+          if (res.ok) {
+            console.log(`[Email] OTP sent to ${toEmail} via Brevo.`);
+            return { success: true, provider: 'brevo' };
+          }
+        } catch {}
+      }
+
+      // 3. SendGrid API
+      const sendgridKey = envObj.SENDGRID_API_KEY || (typeof process !== 'undefined' ? process.env?.SENDGRID_API_KEY : '');
+      if (sendgridKey) {
+        try {
+          const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${sendgridKey.trim()}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              personalizations: [{ to: [{ email: toEmail }] }],
+              from: { email: 'no-reply@smartvocab.io', name: 'SmartVocab.io' },
+              subject,
+              content: [{ type: 'text/html', value: html }],
+            }),
+          });
+          if (res.ok) {
+            console.log(`[Email] OTP sent to ${toEmail} via SendGrid.`);
+            return { success: true, provider: 'sendgrid' };
+          }
+        } catch {}
+      }
+
+      console.log(`[Email Notice] OTP generated for ${toEmail}: ${otpCode}. (Configure RESEND_API_KEY on Cloudflare to send real emails automatically)`);
+      return { success: false };
+    }
+
     // POST /api/auth/request-otp
     if (pathname === '/api/auth/request-otp' && method === 'POST') {
       const body = await request.json().catch(() => ({})) as any;
@@ -448,9 +565,12 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
         VALUES (?, ?, ?, ?, 0, ?)
       `).bind(crypto.randomUUID(), canonical, codeHash, expiresAt, Date.now()).run();
 
+      // Send OTP to user email
+      await sendOtpEmail(user.email_display || canonical, rawCode, env);
+
       return json({
-        ...uniformResponse,
-        devOtpCode: rawCode,
+        success: true,
+        message: `Mã OTP xác thực gồm 6 chữ số đã được gửi tới email ${user.email_display}. Vui lòng kiểm tra hộp thư (cả thư rác/Spam) và tự nhập mã để đăng nhập.`,
         emailDisplay: user.email_display,
       });
     }

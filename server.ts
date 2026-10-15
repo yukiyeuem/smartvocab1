@@ -166,12 +166,27 @@ app.post('/api/auth/request-otp', (req: Request, res: Response) => {
   });
   db.scheduleSave();
 
-  console.log(`[OTP] Generated OTP code for ${email} (${canonical}): ${rawCode}`);
+  // Dispatch real email via Resend, Brevo or SendGrid if configured
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
+    fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM || 'SmartVocab.io <onboarding@resend.dev>',
+        to: [user.email_display || canonical],
+        subject: `[SmartVocab.io] Mã xác thực đăng nhập: ${rawCode}`,
+        html: `<p>Mã OTP đăng nhập SmartVocab.io của bạn là: <strong>${rawCode}</strong> (Hiệu lực trong 10 phút).</p>`,
+      }),
+    }).catch(err => console.error('[Server Email Resend Failed]', err));
+  }
 
-  // In developer/test environment, return devOtpCode directly as requested by user
   return res.json({
-    ...uniformResponse,
-    devOtpCode: rawCode,
+    success: true,
+    message: `Mã OTP xác thực gồm 6 chữ số đã được gửi tới email ${user.email_display}. Vui lòng kiểm tra hộp thư (cả thư rác/Spam) và tự nhập mã để đăng nhập.`,
     emailDisplay: user.email_display,
   });
 });
