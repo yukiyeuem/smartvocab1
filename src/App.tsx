@@ -106,6 +106,9 @@ export default function App() {
 
         return {
           ...d,
+          title: d.title || 'Bộ thẻ',
+          description: d.description || '',
+          topic: d.topic || '',
           totalCards: total,
           dueCards: due,
           newCards: newCount,

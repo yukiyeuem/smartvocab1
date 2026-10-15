@@ -164,8 +164,8 @@ export const AdminPanel: React.FC = () => {
   const filteredUsers = users.filter(u => {
     if (statusFilter !== 'all' && u.status !== statusFilter) return false;
     if (search.trim()) {
-      const term = search.toLowerCase();
-      return u.email.toLowerCase().includes(term) || u.displayName.toLowerCase().includes(term);
+      const term = (search || '').toLowerCase();
+      return (u.email || '').toLowerCase().includes(term) || (u.displayName || '').toLowerCase().includes(term);
     }
     return true;
   });

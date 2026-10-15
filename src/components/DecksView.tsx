@@ -28,11 +28,14 @@ export const DecksView: React.FC<DecksViewProps> = ({
   const [confirmTarget, setConfirmTarget] = useState<{ type: 'deck' | 'all_cards'; deck: Deck } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const filteredDecks = decks.filter(d =>
-    d.title.toLowerCase().includes(search.toLowerCase()) ||
-    d.topic.toLowerCase().includes(search.toLowerCase()) ||
-    d.description.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredDecks = (decks || []).filter(d => {
+    if (!d) return false;
+    const s = (search || '').toLowerCase();
+    const titleMatch = (d.title || '').toLowerCase().includes(s);
+    const topicMatch = (d.topic || '').toLowerCase().includes(s);
+    const descMatch = (d.description || '').toLowerCase().includes(s);
+    return titleMatch || topicMatch || descMatch;
+  });
 
   const totalCardsAllDecks = decks.reduce((acc, d) => acc + (d.totalCards || 0), 0);
   const totalDueAllDecks = decks.reduce((acc, d) => acc + (d.dueCards || 0), 0);
