@@ -1089,9 +1089,10 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
     async function callGeminiEdge(apiKey: string, prompt: string, preferredModel?: string): Promise<{ text: string; modelUsed: string }> {
       // Dynamic fallback hierarchy:
       // Primary: gemini-3.8-flash (best quality, full reasoning)
-      // High-volume fallback: gemini-3.1-flash-lite (high RPM/RPD limits, ultra-fast latency)
+      // Tier 1 fallback: gemini-3.5-flash-lite (high efficiency, rapid response)
+      // Tier 2 fallback: gemini-3.1-flash-lite (high RPM/RPD limits, ultra-fast latency)
       // Emergency backup: gemini-flash-latest
-      const baseModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+      const baseModels = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
       const models = preferredModel && baseModels.includes(preferredModel)
         ? [preferredModel, ...baseModels.filter(m => m !== preferredModel)]
         : baseModels;
@@ -1191,10 +1192,9 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
           hasKey: true,
           maskedKey,
           primaryModel: 'gemini-3.8-flash',
-          fallbackModel: 'gemini-3.1-flash-lite',
-          backupModel: 'gemini-flash-latest',
+          fallbackChain: ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-latest'],
           modelUsed: testRes.modelUsed,
-          failoverPolicy: 'Tự động phát hiện lỗi 429 (Resource Exhausted / Rate Limit / Quota) hoặc 503 để chuyển tiếp ngay lập tức sang gemini-3.1-flash-lite không làm gián đoạn người dùng.',
+          failoverPolicy: 'Tự động phát hiện lỗi 429 (Resource Exhausted / Rate Limit / Quota) hoặc 503 để chuyển tiếp ngay lập tức sang gemini-3.5-flash-lite rồi gemini-3.1-flash-lite không làm gián đoạn người dùng.',
           testResponse: testRes.text.slice(0, 50),
           message: 'Kết nối Google Gemini AI thành công và sẵn sàng phục vụ!'
         });
