@@ -1141,18 +1141,19 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
 
     async function callGeminiEdge(apiKey: string, prompt: string, preferredModel?: string): Promise<{ text: string; modelUsed: string }> {
       // Dynamic fallback hierarchy:
-      // Primary: gemini-3.8-flash (best quality, full reasoning)
-      // Tier 1 fallback: gemini-3.5-flash-lite (high efficiency, rapid response)
-      // Tier 2 fallback: gemini-3.1-flash-lite (high RPM/RPD limits, ultra-fast latency)
-      const baseModels = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+      // Primary: gemini-3.5-flash-lite (high efficiency, fast response)
+      // Tier 1 fallback: gemini-3.1-flash-lite (high RPM/RPD limits, ultra-fast)
+      // Tier 2 fallback: gemini-3.8-flash (deep reasoning fallback)
+      const baseModels = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
       const models = preferredModel && baseModels.includes(preferredModel)
         ? [preferredModel, ...baseModels.filter(m => m !== preferredModel)]
         : baseModels;
 
+      const apiBase = (env.GEMINI_GATEWAY_URL || env.AI_GATEWAY_URL || env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
       let lastErrorMsg = '';
 
       for (const model of models) {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const geminiUrl = `${apiBase}/v1beta/models/${model}:generateContent?key=${apiKey}`;
         let isQuotaOrRateLimit = false;
 
         // Attempt 1: with responseMimeType
@@ -1183,6 +1184,9 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
               isQuotaOrRateLimit = true;
               console.warn(`[AI Edge] Model ${model} reached quota/rate limit (HTTP ${geminiRes.status}). Switching immediately to next fallback model...`);
               continue;
+            }
+            if (errText.includes('User location is not supported')) {
+              lastErrorMsg = `[${model}] Google chặn IP của vùng Cloudflare này: User location is not supported for the API use.`;
             }
           }
         } catch (err: any) {
@@ -1237,27 +1241,39 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       }
 
       const maskedKey = cleanKey.length > 8 ? `${cleanKey.slice(0, 4)}...${cleanKey.slice(-4)}` : '****';
+      const colo = (request as any).cf?.colo || 'direct';
       try {
         const testRes = await callGeminiEdge(cleanKey, 'Ping. Respond with raw JSON {"status": "OK"}.');
         return json({
           status: 'ok',
           hasKey: true,
           maskedKey,
-          primaryModel: 'gemini-3.8-flash',
-          fallbackChain: ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'],
+          colo,
+          primaryModel: 'gemini-3.5-flash-lite',
+          fallbackChain: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'],
           modelUsed: testRes.modelUsed,
-          failoverPolicy: 'Tự động phát hiện lỗi 429 (Resource Exhausted / Rate Limit / Quota) hoặc 503 để chuyển tiếp ngay lập tức sang gemini-3.5-flash-lite rồi gemini-3.1-flash-lite không làm gián đoạn người dùng.',
+          failoverPolicy: 'gemini-3.5-flash-lite là model chính. Tự động chuyển tiếp sang gemini-3.1-flash-lite và gemini-3.8-flash khi gặp hạn mức 429 hoặc 503.',
           testResponse: testRes.text.slice(0, 50),
           message: 'Kết nối Google Gemini AI thành công và sẵn sàng phục vụ!'
         });
       } catch (err: any) {
+        const errMsg = err.message || String(err);
+        const isLocationError = errMsg.includes('User location is not supported');
         return json({
           status: 'error',
           hasKey: true,
           maskedKey,
-          message: 'Google Gemini từ chối API key hoặc kết nối thất bại.',
-          errorDetail: err.message || String(err),
-          suggestion: 'Vui lòng kiểm tra lại API key trên https://aistudio.google.com/app/apikey. Đảm bảo key còn hiệu lực và không bị khóa theo IP/Domain.'
+          colo,
+          isLocationError,
+          primaryModel: 'gemini-3.5-flash-lite',
+          fallbackChain: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'],
+          message: isLocationError
+            ? 'Máy chủ Cloudflare Edge tại khu vực này bị Google chặn địa lý (User location is not supported).'
+            : 'Google Gemini từ chối API key hoặc kết nối thất bại.',
+          errorDetail: errMsg,
+          solution: isLocationError
+            ? 'Khắc phục bằng Cloudflare AI Gateway: 1. Vào Cloudflare Dashboard > AI > AI Gateway > Create Gateway > Chọn Google AI Studio. 2. Thêm biến GEMINI_GATEWAY_URL vào Worker Settings.'
+            : 'Vui lòng kiểm tra lại API key trên https://aistudio.google.com/app/apikey. Đảm bảo key còn hiệu lực và không bị khóa theo IP/Domain.'
         }, 500);
       }
     }
