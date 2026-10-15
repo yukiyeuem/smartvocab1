@@ -3,14 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SmartVocab - Học Từ Vựng Tiếng Anh SRS & AI</title>
-    <meta name="description" content="Nền tảng học từ vựng tiếng Anh thông minh với thuật toán lặp lại ngắt quãng (SRS), tra từ AI chuyên sâu và tạo bài đọc ngữ cảnh thực tế." />
-    <meta property="og:title" content="SmartVocab - Học Từ Vựng Tiếng Anh SRS & AI" />
-    <meta property="og:description" content="Nền tảng học từ vựng tiếng Anh thông minh với thuật toán lặp lại ngắt quãng (SRS), tra từ AI chuyên sâu và tạo bài đọc ngữ cảnh thực tế." />
+    <title>SmartVocab.io - Học Từ Vựng Tiếng Anh SRS & AI</title>
+    <meta name="description" content="SmartVocab.io - Nền tảng học từ vựng tiếng Anh thông minh với thuật toán lặp lại ngắt quãng (SRS), tra từ AI chuyên sâu và tạo bài đọc ngữ cảnh." />
+    <meta property="og:title" content="SmartVocab.io - Học Từ Vựng Tiếng Anh SRS & AI" />
+    <meta property="og:description" content="SmartVocab.io - Nền tảng học từ vựng tiếng Anh thông minh với thuật toán lặp lại ngắt quãng (SRS), tra từ AI chuyên sâu và tạo bài đọc ngữ cảnh." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('vocab_theme');
+          var isDark = saved === 'dark' || ((!saved || saved === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body>
+  <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

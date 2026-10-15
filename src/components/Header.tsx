@@ -167,21 +167,12 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onSelectTab('dictionary')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/40 border border-sky-200 dark:border-sky-800 rounded-lg text-sm font-medium transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-                <span>Tra từ AI</span>
-              </button>
-              <button
-                onClick={onOpenAuth}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm transition-all"
-              >
-                Đăng nhập
-              </button>
-            </div>
+            <button
+              onClick={onOpenAuth}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm transition-all"
+            >
+              Đăng nhập / Xin cấp quyền
+            </button>
           )}
         </div>
       </div>

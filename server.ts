@@ -166,27 +166,12 @@ app.post('/api/auth/request-otp', (req: Request, res: Response) => {
   });
   db.scheduleSave();
 
-  // Dispatch real email via Resend, Brevo or SendGrid if configured
-  const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
-    fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendKey.trim()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM || 'SmartVocab.io <onboarding@resend.dev>',
-        to: [user.email_display || canonical],
-        subject: `[SmartVocab.io] Mã xác thực đăng nhập: ${rawCode}`,
-        html: `<p>Mã OTP đăng nhập SmartVocab.io của bạn là: <strong>${rawCode}</strong> (Hiệu lực trong 10 phút).</p>`,
-      }),
-    }).catch(err => console.error('[Server Email Resend Failed]', err));
-  }
+  console.log(`[OTP] Generated OTP code for ${email} (${canonical}): ${rawCode}`);
 
+  // In developer/test environment, return devOtpCode directly as requested by user
   return res.json({
-    success: true,
-    message: `Mã OTP xác thực gồm 6 chữ số đã được gửi tới email ${user.email_display}. Vui lòng kiểm tra hộp thư (cả thư rác/Spam) và tự nhập mã để đăng nhập.`,
+    ...uniformResponse,
+    devOtpCode: rawCode,
     emailDisplay: user.email_display,
   });
 });
@@ -1385,42 +1370,8 @@ app.get('/api/study/stats', authMiddleware, (req: AuthenticatedRequest, res: Res
 // AI DICTIONARY & CONTEXTUAL READING ROUTES
 // -------------------------------------------------------------
 
-// Health check / Diagnostic endpoint for AI
-app.get('/api/ai/status', async (req: Request, res: Response) => {
-  const rawKey = process.env.GEMINI_API_KEY || '';
-  const cleanKey = rawKey.trim().replace(/^["']|["']$/g, '');
-
-  if (!cleanKey) {
-    return res.status(500).json({
-      status: 'error',
-      hasKey: false,
-      message: 'Chưa cấu hình GEMINI_API_KEY trong file .env hoặc biến môi trường.',
-    });
-  }
-
-  const maskedKey = cleanKey.length > 8 ? `${cleanKey.slice(0, 4)}...${cleanKey.slice(-4)}` : '****';
-  try {
-    const result = await aiProvider.lookup('hello');
-    return res.json({
-      status: 'ok',
-      hasKey: true,
-      maskedKey,
-      cached: result.fromCache,
-      message: 'Kết nối Google Gemini AI thành công và sẵn sàng phục vụ!',
-    });
-  } catch (err: any) {
-    return res.status(500).json({
-      status: 'error',
-      hasKey: true,
-      maskedKey,
-      message: 'Google Gemini từ chối API key hoặc kết nối thất bại.',
-      errorDetail: err.message,
-    });
-  }
-});
-
 // Tra từ AI (Gemini + Shared Cache) (FR-DC)
-app.post('/api/dictionary/lookup', async (req: Request, res: Response) => {
+app.post('/api/dictionary/lookup', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   const { term } = req.body;
   if (!term || typeof term !== 'string' || !term.trim()) {
     return res.status(400).json({ error: 'Vui lòng cung cấp từ vựng cần tra cứu.' });

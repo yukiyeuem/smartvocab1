@@ -1,17 +1,8 @@
-# Cloudflare Pages & D1 Configuration for SmartVocab.io
-name = "smartvocab"
-#compatibility_date = "2024-04-01"
-#pages_build_output_dir = "dist"
+# Cloudflare Workers & Static Assets + Native D1 Configuration for SmartVocab.io
+name = "smartvocab1"
 main = "server/worker.ts"
 compatibility_date = "2024-04-01"
-
-# Native Cloudflare D1 Database Binding
-#[[d1_databases]]
-#binding = "DB"
-#database_name = "smartvocab-db"
-#database_id = "smartvocab-db"
-#database_name = "learnenglish"
-#database_id = "12903698-bea3-4358-9435-51b861f11c0f"
+compatibility_flags = ["nodejs_compat"]
 
 [assets]
 directory = "./dist"
@@ -24,10 +15,6 @@ binding = "DB"
 database_name = "learnenglish"
 database_id = "12903698-bea3-4358-9435-51b861f11c0f"
 
-# Default environment variables for Cloudflare Pages
+# Default environment variables
 [vars]
 ADMIN_EMAIL = "huyhoangpham387@gmail.com"
-
-# Smart Placement routes worker execution to optimal location near Google API servers, avoiding restricted egress colos like HKG
-[placement]
-mode = "smart"

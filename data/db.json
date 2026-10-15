@@ -9,7 +9,7 @@
       "status": "active",
       "timezone": "Asia/Ho_Chi_Minh",
       "created_at": 1791963348176,
-      "last_login_at": 1791968083686
+      "last_login_at": 1791964061414
     },
     {
       "id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
@@ -17,34 +17,31 @@
       "email_display": "huyhoangpham280102@gmail.com",
       "display_name": "Huy Hoàng (Test Học viên)",
       "role": "user",
-      "status": "active",
+      "status": "pending",
       "timezone": "Asia/Ho_Chi_Minh",
       "request_note": "Em xin đăng ký tài khoản học từ vựng SRS theo chương trình lớp.",
       "requested_at": 1791963604992,
-      "created_at": 1791963604992,
-      "decided_at": 1791966010868,
-      "decided_by": "7021bf14-98a1-4d95-81a0-868fdfd145a4",
-      "last_login_at": 1791966021731
+      "created_at": 1791963604992
     }
   ],
   "login_otps": [
     {
-      "id": "cedddf40-7d74-47a2-9e19-fd469fdc6240",
-      "email_canonical": "huyhoangpham280102@gmail.com",
-      "code_hash": "d4fdd63b840cacd65dc4c559a4ba344bdb61c3ac0a31adee75d7699387f70ef0",
-      "expires_at": 1791966620462,
+      "id": "97c1a054-cea9-47bb-bcab-172b7cd2528e",
+      "email_canonical": "huyhoangpham387@gmail.com",
+      "code_hash": "78c7dfdb4d7da21da3069da4841f4dcecd5ffeddd17e5f3b163008dec7327421",
+      "expires_at": 1791964659412,
       "attempts": 0,
-      "created_at": 1791966020462,
-      "consumed_at": 1791966021731
+      "created_at": 1791964059412,
+      "consumed_at": 1791964061414
     },
     {
-      "id": "7a875461-8783-4c02-9af8-9f2ad4b9cc9c",
-      "email_canonical": "huyhoangpham387@gmail.com",
-      "code_hash": "760b26692299afbc9623aa2cc4bf71b1534b1d65a60bf2e233647c3470dcc78b",
-      "expires_at": 1791968682065,
+      "id": "82154a8b-de54-4ca4-9850-6f5b94dd1a83",
+      "email_canonical": "huyhoangpham280102@gmail.com",
+      "code_hash": "b9a52b24ec65affecaab691d16e0fd9c0edd30b923950228fa5f3d90dfd04c8d",
+      "expires_at": 1791964676588,
       "attempts": 0,
-      "created_at": 1791968082065,
-      "consumed_at": 1791968083686
+      "created_at": 1791964076588,
+      "consumed_at": 1791964078619
     }
   ],
   "sessions": [
@@ -120,32 +117,6 @@
       "last_seen_at": 1791965129195,
       "expires_at": 1794556078619,
       "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
-    },
-    {
-      "token_hash": "60a000c4d5b9a6259fc34299acd0b3fc129c66d48cd4073905b152c38831b6f7",
-      "user_id": "7021bf14-98a1-4d95-81a0-868fdfd145a4",
-      "created_at": 1791966003452,
-      "last_seen_at": 1791966011006,
-      "expires_at": 1794558003452,
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
-      "revoked_at": 1791966016813
-    },
-    {
-      "token_hash": "2e3e60170c414f2f790f6a567476cd0f4c0b27f6a3b292e318e6ffcdc592d66d",
-      "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
-      "created_at": 1791966021731,
-      "last_seen_at": 1791968028478,
-      "expires_at": 1794558021731,
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
-      "revoked_at": 1791968079005
-    },
-    {
-      "token_hash": "802a5e626a7e476d99b2ac6c286dbe8acadb137754bb20753f6becd67e6acbeb",
-      "user_id": "7021bf14-98a1-4d95-81a0-868fdfd145a4",
-      "created_at": 1791968083687,
-      "last_seen_at": 1791968083687,
-      "expires_at": 1794560083687,
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
     }
   ],
   "user_settings": [
@@ -162,13 +133,13 @@
     },
     {
       "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
-      "new_cards_per_day": 100,
+      "new_cards_per_day": 10,
       "max_reviews_per_day": 100,
       "card_direction": "en_vi",
       "auto_pronounce": false,
       "ai_enabled": false,
-      "theme": "dark",
-      "updated_at": 1791968028478
+      "theme": "system",
+      "updated_at": 1791963604992
     }
   ],
   "app_settings": {
@@ -177,9 +148,112 @@
     "default_daily_lookup_quota": 50,
     "default_daily_reading_quota": 10
   },
-  "decks": [],
-  "cards": [],
-  "user_card_state": [],
+  "decks": [
+    {
+      "id": "344678b4-d851-4c5a-a26f-63e63926a348",
+      "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
+      "title": "toeic",
+      "description": "a",
+      "topic": "tech",
+      "created_at": 1791964083131,
+      "updated_at": 1791964083131
+    }
+  ],
+  "cards": [
+    {
+      "id": "4ebd3aef-7618-490a-a164-507b172422c7",
+      "deck_id": "344678b4-d851-4c5a-a26f-63e63926a348",
+      "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
+      "position": 0,
+      "term": "it",
+      "term_normalized": "it",
+      "meaning_vi": "công nghệ thông tin",
+      "definition_en": "",
+      "phonetic": "",
+      "part_of_speech": "",
+      "synonyms": [],
+      "antonyms": [],
+      "example": "",
+      "group_name": "",
+      "field_sources": {
+        "term": "manual",
+        "meaning_vi": "manual"
+      },
+      "flagged_hard": false,
+      "created_at": 1791964083131,
+      "updated_at": 1791964083131
+    },
+    {
+      "id": "74b9063d-e879-4ed1-820e-511c46253672",
+      "deck_id": "344678b4-d851-4c5a-a26f-63e63926a348",
+      "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
+      "position": 1,
+      "term": "database",
+      "term_normalized": "database",
+      "meaning_vi": "cơ sở dữ liệu",
+      "definition_en": "",
+      "phonetic": "",
+      "part_of_speech": "",
+      "synonyms": [],
+      "antonyms": [],
+      "example": "",
+      "group_name": "",
+      "field_sources": {
+        "term": "manual",
+        "meaning_vi": "manual"
+      },
+      "flagged_hard": false,
+      "created_at": 1791964083131,
+      "updated_at": 1791964083131
+    }
+  ],
+  "user_card_state": [
+    {
+      "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
+      "card_id": "4ebd3aef-7618-490a-a164-507b172422c7",
+      "direction": "en_vi",
+      "ease_factor": 2.5,
+      "interval_days": 0,
+      "repetitions": 0,
+      "lapses": 0,
+      "due_at": 1791964083131,
+      "suspended": false,
+      "last_reviewed_at": 1791964189827
+    },
+    {
+      "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
+      "card_id": "4ebd3aef-7618-490a-a164-507b172422c7",
+      "direction": "vi_en",
+      "ease_factor": 2.5,
+      "interval_days": 0,
+      "repetitions": 0,
+      "lapses": 0,
+      "due_at": 1791964083131,
+      "suspended": false
+    },
+    {
+      "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
+      "card_id": "74b9063d-e879-4ed1-820e-511c46253672",
+      "direction": "en_vi",
+      "ease_factor": 2.5,
+      "interval_days": 0,
+      "repetitions": 0,
+      "lapses": 0,
+      "due_at": 1791964083131,
+      "suspended": false
+    },
+    {
+      "user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
+      "card_id": "74b9063d-e879-4ed1-820e-511c46253672",
+      "direction": "vi_en",
+      "ease_factor": 2.5,
+      "interval_days": 0,
+      "repetitions": 0,
+      "lapses": 0,
+      "due_at": 1791964083131,
+      "suspended": false
+    }
+  ],
   "review_logs": [],
   "dictionary_cache": [
     {
@@ -488,129 +562,6 @@
       "prompt_version": "v4.2",
       "created_at": 1791965108097,
       "expires_at": 1794557108097
-    },
-    {
-      "cache_key": "access:v4.3",
-      "payload": {
-        "term": "access",
-        "lemma": "access",
-        "phonetic": "/ˈæk.ses/",
-        "group_name": "access",
-        "word_family": [
-          "access",
-          "accessible",
-          "accessibility",
-          "inaccessible",
-          "accession",
-          "accessory"
-        ],
-        "senses": [
-          {
-            "pos": "noun",
-            "meaning_vi": "sự tiếp cận, quyền truy cập",
-            "definition_en": "the opportunity or right to use or see something",
-            "phonetic": "/ˈæk.ses/",
-            "examples": [
-              "The computer has restricted access for unauthorized users.",
-              "Students have access to the library's online database."
-            ],
-            "synonyms": [
-              {
-                "word": "admission",
-                "note_vi": "quyền được vào một nơi"
-              },
-              {
-                "word": "entry",
-                "note_vi": "lối vào hoặc quyền đi vào"
-              }
-            ],
-            "antonyms": [
-              "exclusion",
-              "denial"
-            ]
-          },
-          {
-            "pos": "verb",
-            "meaning_vi": "truy cập, tiếp cận",
-            "definition_en": "to open or retrieve data from a computer system or location",
-            "phonetic": "/ˈæk.ses/",
-            "examples": [
-              "You need a password to access these files.",
-              "The building is designed to be easily accessed by wheelchair users."
-            ],
-            "synonyms": [
-              {
-                "word": "enter",
-                "note_vi": "đi vào hoặc nhập dữ liệu"
-              },
-              {
-                "word": "retrieve",
-                "note_vi": "lấy ra dữ liệu"
-              }
-            ],
-            "antonyms": [
-              "block",
-              "bar"
-            ]
-          }
-        ]
-      },
-      "model": "gemini-3.1-flash-lite",
-      "prompt_version": "v4.3",
-      "created_at": 1791966044161,
-      "expires_at": 1794558044161
-    },
-    {
-      "cache_key": "information:v4.3",
-      "payload": {
-        "term": "information",
-        "lemma": "inform",
-        "phonetic": "/ˌɪnfəˈmeɪʃn/",
-        "group_name": "inform",
-        "word_family": [
-          "inform",
-          "information",
-          "informative",
-          "informal",
-          "informant",
-          "misinformation",
-          "uninformative"
-        ],
-        "senses": [
-          {
-            "pos": "noun",
-            "meaning_vi": "thông tin, tin tức",
-            "definition_en": "facts or details that tell you something about a situation, person, event, etc.",
-            "phonetic": "/ˌɪnfəˈmeɪʃn/",
-            "examples": [
-              "Do you have any information about the train times?",
-              "She provided valuable information for the investigation."
-            ],
-            "synonyms": [
-              {
-                "word": "data",
-                "note_vi": "dữ liệu thô"
-              },
-              {
-                "word": "details",
-                "note_vi": "chi tiết cụ thể"
-              },
-              {
-                "word": "intelligence",
-                "note_vi": "thông tin tình báo/bí mật"
-              }
-            ],
-            "antonyms": [
-              "misinformation",
-              "ignorance"
-            ]
-          }
-        ]
-      },
-      "model": "gemini-3.1-flash-lite",
-      "prompt_version": "v4.3",
-      "created_at": 1791966077299,
-      "expires_at": 1794558077299
     }
   ],
   "reading_passages": [
@@ -779,16 +730,6 @@
         "email": "huyhoangpham280102@gmail.com"
       },
       "created_at": 1791964067128
-    },
-    {
-      "id": "7932176a-fac4-4da0-9e98-12b597fa3cc0",
-      "actor_id": "7021bf14-98a1-4d95-81a0-868fdfd145a4",
-      "action": "APPROVE_USER",
-      "target_user_id": "fe8d8cf7-c8b2-4dfd-8d64-47607f91f4f7",
-      "meta": {
-        "email": "huyhoangpham280102@gmail.com"
-      },
-      "created_at": 1791966010868
     }
   ],
   "ai_usage": []

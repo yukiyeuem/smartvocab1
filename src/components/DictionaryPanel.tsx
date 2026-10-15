@@ -31,19 +31,16 @@ export const DictionaryPanel: React.FC<DictionaryPanelProps> = ({
     setSavedSenseIdx(null);
 
     try {
-      const res = await apiRequest<any>(
+      const res = await apiRequest<{ success: boolean; data?: DictionaryLookupResult; fromCache?: boolean; senses?: any[] }>(
         '/api/dictionary/lookup',
         {
           method: 'POST',
           body: JSON.stringify({ term: searchTerm.trim() }),
         }
       );
-      const lookupData: DictionaryLookupResult = res.data || (res.senses ? res : null);
-      if (!lookupData) {
-        throw new Error('Dữ liệu từ điển không hợp lệ.');
-      }
-      setResult(lookupData);
-      setFromCache(Boolean(res.fromCache || res.cached));
+      const data = res.data || (res.senses ? (res as any) : null);
+      setResult(data);
+      setFromCache(Boolean(res.fromCache));
     } catch (err: any) {
       setError(err.message || 'Không thể tra cứu từ vựng với AI.');
     } finally {
