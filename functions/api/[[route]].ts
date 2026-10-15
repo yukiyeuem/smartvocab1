@@ -1086,12 +1086,21 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
     // AI DICTIONARY & CONTEXTUAL READING (GEMINI API)
     // ---------------------------------------------------------
 
-    async function callGeminiEdge(apiKey: string, prompt: string): Promise<{ text: string; modelUsed: string }> {
-      const models = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+    async function callGeminiEdge(apiKey: string, prompt: string, preferredModel?: string): Promise<{ text: string; modelUsed: string }> {
+      // Dynamic fallback hierarchy:
+      // Primary: gemini-3.8-flash (best quality, full reasoning)
+      // High-volume fallback: gemini-3.1-flash-lite (high RPM/RPD limits, ultra-fast latency)
+      // Emergency backup: gemini-flash-latest
+      const baseModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+      const models = preferredModel && baseModels.includes(preferredModel)
+        ? [preferredModel, ...baseModels.filter(m => m !== preferredModel)]
+        : baseModels;
+
       let lastErrorMsg = '';
 
       for (const model of models) {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        let isQuotaOrRateLimit = false;
 
         // Attempt 1: with responseMimeType
         try {
@@ -1116,12 +1125,23 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
           } else {
             const errText = await geminiRes.text();
             lastErrorMsg = `[${model}] HTTP ${geminiRes.status}: ${errText.slice(0, 160)}`;
+            // Detect Rate Limit (429) or Quota exhaustion (RESOURCE_EXHAUSTED)
+            if (geminiRes.status === 429 || geminiRes.status === 404 || errText.includes('RESOURCE_EXHAUSTED') || errText.includes('quota') || errText.includes('Rate limit')) {
+              isQuotaOrRateLimit = true;
+              console.warn(`[AI Edge] Model ${model} reached quota/rate limit (HTTP ${geminiRes.status}). Switching immediately to next fallback model...`);
+              continue;
+            }
           }
         } catch (err: any) {
           lastErrorMsg = `[${model}] ${err?.message || err}`;
         }
 
-        // Attempt 2: without responseMimeType if attempt 1 encountered 503 or error
+        // If this model is rate-limited/out-of-quota, skip Attempt 2 and immediately move to next model
+        if (isQuotaOrRateLimit) {
+          continue;
+        }
+
+        // Attempt 2: without responseMimeType if attempt 1 encountered 503 or JSON mode error
         try {
           const geminiRes = await fetch(geminiUrl, {
             method: 'POST',
@@ -1159,19 +1179,23 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
           status: 'error',
           hasKey: false,
           message: 'Biến GEMINI_API_KEY chưa được thiết lập trên Cloudflare Workers / Settings.',
-          guide: 'Vào Cloudflare Dashboard > Workers & Pages > smartvocab > Settings > Variables and Secrets, thêm Secret GEMINI_API_KEY (hoặc chạy: npx wrangler secret put GEMINI_API_KEY).'
+          guide: 'Vào Cloudflare Dashboard > Workers & Pages > smartvocab1 > Settings > Variables and Secrets, thêm Secret GEMINI_API_KEY (hoặc chạy: npx wrangler secret put GEMINI_API_KEY).'
         }, 200);
       }
 
       const maskedKey = cleanKey.length > 8 ? `${cleanKey.slice(0, 4)}...${cleanKey.slice(-4)}` : '****';
       try {
-        const { text, modelUsed } = await callGeminiEdge(cleanKey, 'Ping. Respond with OK.');
+        const testRes = await callGeminiEdge(cleanKey, 'Ping. Respond with raw JSON {"status": "OK"}.');
         return json({
           status: 'ok',
           hasKey: true,
           maskedKey,
-          modelUsed,
-          testResponse: text.slice(0, 50),
+          primaryModel: 'gemini-3.8-flash',
+          fallbackModel: 'gemini-3.1-flash-lite',
+          backupModel: 'gemini-flash-latest',
+          modelUsed: testRes.modelUsed,
+          failoverPolicy: 'Tự động phát hiện lỗi 429 (Resource Exhausted / Rate Limit / Quota) hoặc 503 để chuyển tiếp ngay lập tức sang gemini-3.1-flash-lite không làm gián đoạn người dùng.',
+          testResponse: testRes.text.slice(0, 50),
           message: 'Kết nối Google Gemini AI thành công và sẵn sàng phục vụ!'
         });
       } catch (err: any) {
@@ -1242,7 +1266,7 @@ Trả về kết quả chuẩn định dạng JSON duy nhất không kèm markdo
 }`;
 
       try {
-        const { text, modelUsed } = await callGeminiEdge(apiKey, prompt);
+        const { text, modelUsed } = await callGeminiEdge(apiKey, prompt, body.preferred_model);
         const cleanJson = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
         const parsed = JSON.parse(cleanJson);
         if (!parsed.term) parsed.term = term;
@@ -1257,7 +1281,11 @@ Trả về kết quả chuẩn định dạng JSON duy nhất không kèm markdo
 
         return json({
           success: true,
-          data: parsed,
+          modelUsed,
+          data: {
+            ...parsed,
+            modelUsed,
+          },
           ...parsed,
           fromCache: false,
           cached: false,

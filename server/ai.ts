@@ -81,7 +81,9 @@ export class AiProvider {
     let lastError: any = null;
 
     for (const model of CANDIDATE_MODELS) {
-      // Attempt 1: with responseMimeType
+      let isRateLimitOrQuota = false;
+
+      // Attempt 1: with responseMimeType & thinkingLevel LOW
       try {
         const response = await client.models.generateContent({
           model,
@@ -100,7 +102,18 @@ export class AiProvider {
         }
       } catch (err: any) {
         lastError = err;
-        console.warn(`[AI] Model ${model} with responseMimeType failed (${err.message || err}). Trying unconstrained prompt...`);
+        const msg = String(err?.message || err);
+        const status = err?.status;
+        if (status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('rate limit')) {
+          isRateLimitOrQuota = true;
+          console.warn(`[AI] Model ${model} reached rate limit/quota. Seamlessly switching to next fallback model...`);
+          continue;
+        }
+        console.warn(`[AI] Model ${model} with responseMimeType failed (${msg}). Trying unconstrained prompt...`);
+      }
+
+      if (isRateLimitOrQuota) {
+        continue;
       }
 
       // Attempt 2: without responseMimeType if 503/demand spike occurred
