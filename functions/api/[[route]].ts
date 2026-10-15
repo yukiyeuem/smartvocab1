@@ -422,7 +422,156 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       });
     }
 
-    // Helper to send real OTP email via Resend, Brevo, SendGrid or fallback log
+    // Helper to find any Render or custom email API in environment variables
+    function getCustomEmailApi(envObj: any): { url: string; apiKey?: string } | null {
+      const explicitCandidates = [
+        envObj.RENDER_MAIL_URL, envObj.RENDER_EMAIL_URL, envObj.RENDER_API_URL, envObj.RENDER_URL,
+        envObj.MAIL_API_URL, envObj.EMAIL_API_URL, envObj.MAIL_SERVICE_URL, envObj.EMAIL_SERVICE_URL,
+        envObj.MAIL_URL, envObj.EMAIL_URL, envObj.CUSTOM_MAIL_URL, envObj.OTP_EMAIL_URL,
+        envObj.RENDER_SERVICE_URL, envObj.RENDER_API, envObj.RENDER_ENDPOINT, envObj.MAIL_ENDPOINT,
+        envObj.RENDER_APP_URL, envObj.RENDER_SERVER_URL, envObj.RENDER_HOST
+      ];
+      for (const c of explicitCandidates) {
+        if (typeof c === 'string' && c.trim()) {
+          return {
+            url: c.trim(),
+            apiKey: envObj.RENDER_API_KEY || envObj.MAIL_API_KEY || envObj.EMAIL_API_KEY || envObj.API_KEY,
+          };
+        }
+      }
+
+      // Check process.env if available
+      if (typeof process !== 'undefined' && process.env) {
+        for (const [k, v] of Object.entries(process.env)) {
+          if (typeof v === 'string') {
+            const val = v.trim();
+            if (val.includes('.onrender.com') || (val.startsWith('http') && (k.toLowerCase().includes('mail') || k.toLowerCase().includes('email') || k.toLowerCase().includes('render')))) {
+              return {
+                url: val,
+                apiKey: process.env.RENDER_API_KEY || process.env.MAIL_API_KEY || process.env.EMAIL_API_KEY,
+              };
+            }
+          }
+        }
+      }
+
+      // Dynamic scan of all envObj keys/values in Cloudflare Workers
+      if (typeof envObj === 'object' && envObj !== null) {
+        for (const [k, v] of Object.entries(envObj)) {
+          if (typeof v === 'string') {
+            const val = v.trim();
+            if (val.includes('.onrender.com') || (val.startsWith('http') && (k.toLowerCase().includes('mail') || k.toLowerCase().includes('email') || k.toLowerCase().includes('render')))) {
+              return {
+                url: val,
+                apiKey: envObj.RENDER_API_KEY || envObj.MAIL_API_KEY || envObj.EMAIL_API_KEY || envObj.API_KEY,
+              };
+            }
+          }
+        }
+      }
+
+      return null;
+    }
+
+    // Call Render or custom microservice to send email
+    async function sendViaRenderService(
+      serviceUrl: string,
+      apiKey: string | undefined,
+      toEmail: string,
+      otpCode: string,
+      subject: string,
+      html: string
+    ): Promise<{ success: boolean; provider?: string; error?: string }> {
+      let cleanUrl = serviceUrl.trim();
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        cleanUrl = `https://${cleanUrl}`;
+      }
+
+      const payload = {
+        to: toEmail,
+        email: toEmail,
+        toEmail: toEmail,
+        recipient: toEmail,
+        subject: subject,
+        otp: otpCode,
+        code: otpCode,
+        otpCode: otpCode,
+        html: html,
+        content: html,
+        text: `Mã xác thực OTP SmartVocab.io của bạn là: ${otpCode}. Mã có hiệu lực trong 10 phút.`,
+        message: `Mã xác thực OTP SmartVocab.io của bạn là: ${otpCode}. Mã có hiệu lực trong 10 phút.`,
+      };
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/plain, */*',
+        'User-Agent': 'SmartVocab-Worker/4.3',
+      };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+        headers['x-api-key'] = apiKey.trim();
+      }
+
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(cleanUrl);
+      } catch {
+        return { success: false, error: `URL Render không đúng định dạng: ${cleanUrl}` };
+      }
+
+      const endpointsToTry: string[] = [];
+      if (parsedUrl.pathname && parsedUrl.pathname !== '/' && parsedUrl.pathname !== '') {
+        endpointsToTry.push(cleanUrl);
+      } else {
+        const base = cleanUrl.replace(/\/+$/, '');
+        endpointsToTry.push(
+          `${base}/api/send-email`,
+          `${base}/send-email`,
+          `${base}/send-mail`,
+          `${base}/api/send-mail`,
+          `${base}/api/mail`,
+          `${base}/send`,
+          `${base}/api/send`,
+          `${base}/api/otp`,
+          `${base}/`
+        );
+      }
+
+      let lastError = '';
+      for (const targetUrl of endpointsToTry) {
+        try {
+          console.log(`[Render Mail] Calling ${targetUrl} for ${toEmail}...`);
+          const res = await fetch(targetUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+          });
+
+          const resText = await res.text().catch(() => '');
+          console.log(`[Render Mail] Response from ${targetUrl}: HTTP ${res.status} - ${resText.slice(0, 160)}`);
+
+          if (res.ok) {
+            return { success: true, provider: 'render' };
+          }
+
+          try {
+            const parsed = JSON.parse(resText);
+            if (parsed.success === true || parsed.status === 'success' || parsed.sent === true) {
+              return { success: true, provider: 'render' };
+            }
+          } catch {}
+
+          lastError = `HTTP ${res.status}: ${resText.slice(0, 120)}`;
+        } catch (e: any) {
+          console.warn(`[Render Mail] Error contacting ${targetUrl}:`, e?.message || e);
+          lastError = e?.message || String(e);
+        }
+      }
+
+      return { success: false, error: lastError };
+    }
+
+    // Helper to send real OTP email via Render, Resend, Brevo, SendGrid or fallback log
     async function sendOtpEmail(toEmail: string, otpCode: string, envObj: Env): Promise<{ success: boolean; provider?: string }> {
       const fromEmail = envObj.EMAIL_FROM || envObj.RESEND_FROM || 'SmartVocab.io <onboarding@resend.dev>';
       const subject = `[SmartVocab.io] Mã xác thực đăng nhập: ${otpCode}`;
@@ -459,6 +608,21 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
   </div>
 </body>
 </html>`;
+
+      // 0. Render or Custom Mail Service (Highest Priority)
+      const renderApi = getCustomEmailApi(envObj);
+      if (renderApi) {
+        try {
+          const renderRes = await sendViaRenderService(renderApi.url, renderApi.apiKey, toEmail, otpCode, subject, html);
+          if (renderRes.success) {
+            return { success: true, provider: 'render' };
+          } else {
+            console.warn('[Render Mail Failed]', renderRes.error);
+          }
+        } catch (err) {
+          console.warn('[Render Mail Error]', err);
+        }
+      }
 
       // 1. Resend API
       const resendKey = envObj.RESEND_API_KEY || (typeof process !== 'undefined' ? process.env?.RESEND_API_KEY : '');
@@ -616,22 +780,28 @@ export const onRequest = async (context: EventContext): Promise<Response> => {
       }
 
       if (emailSent) {
+        const providerName = emailProvider === 'render' ? 'dịch vụ Render Mail API' : 'email';
         return json({
           success: true,
           emailSent: true,
           emailProvider,
-          message: `Mã xác thực OTP gồm 6 chữ số đã được gửi thành công tới email ${user.email_display}. Vui lòng mở hộp thư đến (kiểm tra cả Spam/Quảng cáo) để lấy mã và nhập vào ô bên dưới.`,
+          message: `Mã xác thực OTP gồm 6 chữ số đã được gửi thành công qua ${providerName} tới email ${user.email_display}. Vui lòng mở hộp thư đến (kiểm tra cả Spam/Quảng cáo) để lấy mã và nhập vào ô bên dưới.`,
           emailDisplay: user.email_display,
         });
       }
 
-      // If email could not be sent (e.g. no RESEND_API_KEY / BREVO_API_KEY configured yet on Cloudflare):
+      // Check if Render API was detected in env
+      const customApi = getCustomEmailApi(env);
+      const customNotice = customApi
+        ? `Đã nhận diện Render API (${customApi.url}), nhưng dịch vụ chưa phản hồi thành công (máy chủ Render miễn phí có thể mất 30-50s để khởi động 'spin-up' lại).`
+        : `Chưa cấu hình API gửi email trên Cloudflare (RENDER_MAIL_URL, BREVO_API_KEY hoặc RESEND_API_KEY).`;
+
       // Return safe backup OTP so user can manually enter it and log in without getting stuck
       return json({
         success: true,
         emailSent: false,
         backupOtpCode: rawCode,
-        message: `Mã OTP của bạn là: ${rawCode}. (Lưu ý: Cloudflare chưa cấu hình RESEND_API_KEY hoặc BREVO_API_KEY nên chưa thể gửi email trực tiếp). Vui lòng nhập mã 6 số này vào ô bên dưới để đăng nhập.`,
+        message: `${customNotice} Mã OTP của bạn là: ${rawCode}. Vui lòng nhập mã 6 số này vào ô bên dưới để đăng nhập.`,
         emailDisplay: user.email_display,
       });
     }

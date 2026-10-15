@@ -161,6 +161,48 @@ async function sendServerOtpEmail(toEmail: string, otpCode: string): Promise<{ s
 </body>
 </html>`;
 
+  // 0. Render or Custom Mail Service (Highest Priority)
+  const renderUrl = process.env.RENDER_MAIL_URL || process.env.RENDER_EMAIL_URL || process.env.RENDER_URL || process.env.MAIL_API_URL || process.env.EMAIL_API_URL;
+  if (renderUrl) {
+    try {
+      let cleanUrl = renderUrl.trim();
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        cleanUrl = `https://${cleanUrl}`;
+      }
+      const endpoints = [
+        cleanUrl,
+        `${cleanUrl.replace(/\/+$/, '')}/api/send-email`,
+        `${cleanUrl.replace(/\/+$/, '')}/send-email`,
+        `${cleanUrl.replace(/\/+$/, '')}/send-mail`,
+      ];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(process.env.RENDER_API_KEY ? { Authorization: `Bearer ${process.env.RENDER_API_KEY.trim()}` } : {}),
+            },
+            body: JSON.stringify({
+              to: toEmail,
+              email: toEmail,
+              subject,
+              otp: otpCode,
+              code: otpCode,
+              html,
+            }),
+          });
+          if (res.ok) {
+            console.log(`[Render Mail] Successfully sent via ${endpoint}`);
+            return { success: true, provider: 'render' };
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('[Render Mail Error]', e);
+    }
+  }
+
   // 1. Resend
   const resendKey = process.env.RESEND_API_KEY;
   if (resendKey) {
